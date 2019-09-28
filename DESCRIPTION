@@ -1,0 +1,30 @@
+Package: fivestar
+Type: Package
+Title: Run 5-STAR Algorithm
+Version: 0.1.0
+Authors@R: c(person("Rachel","Marceau West",email="rachel.marceau.west@merck.com",
+    role=c("aut","cre")),
+    person("Devan","Mehrotra",email="devan.mehrotra@merck.com",role="aut"))
+Maintainer: Rachel Marceau West <rachel.marceauwest@gmail.com>
+Description: Implements the 5-STAR algorithm, forming homogenous risk strata
+    and performing an amalgamation of within-strata treatment effect to get an
+    improved estimate of overall treatment effect.
+Depends: R (>= 3.4.3)
+License: GPL-2 | GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports:
+    partykit (>= 1.2),
+    survival (>= 2.41),
+    survminer (>= 0.4.3),
+    ggplot2 (>= 3.1.0),
+    glmnet (>= 2.0),
+    randomForestSRC (>= 2.7),
+    c060,
+    forestplot,
+    grid,
+    RColorBrewer,
+    stringr
+Suggests:
+    testthat
+RoxygenNote: 6.1.1
