@@ -1,4 +1,4 @@
-Package: fivestar
+Package: fiveSTAR
 Type: Package
 Title: Run 5-STAR Algorithm
 Version: 0.1.0
@@ -24,7 +24,11 @@ Imports:
     forestplot,
     grid,
     RColorBrewer,
-    stringr
+    stringr,
+    coin,
+    pamr,
+    gtools,
+    AICcmodavg
 Suggests:
     testthat
 RoxygenNote: 6.1.1

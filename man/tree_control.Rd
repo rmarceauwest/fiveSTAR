@@ -10,37 +10,33 @@ tree_control(minbucket = 40, alpha = c(0.1, 0.2),
 }
 \arguments{
 \item{minbucket}{Vector of minimum set of weights per terminal node for
-initial and pruning steps - if a single number is given, the same value is
-used for both preliminary and final trees}
+initial and pruning steps (e.g., minimum number of patients/terminal node for
+steps 3A and 3B) - if a single number is given, the same value is
+used for both preliminary and final trees (Default = 40 for both steps)}
 
 \item{alpha}{vector of significance level for variable selection for tree
 splits in preliminary and final trees (3A and 3B) - if a single number is
-given, the same value is used for both preliminary and final trees}
+given, the same value is used for both preliminary and final trees
+(Default is (0.1,0.2))}
 
 \item{testtype}{from \code{\link[partykit]{ctree_control}}:
 "a character specifying how to compute the distribution of the test
 statistic" (default = "Bonferroni")}
 
-\item{majority}{from \code{\link[partykit]{ctree_control}}:
-whether to place all missing observations with the most common node, or
-assign them randomly}
-
-\item{maxsurrogate}{from \code{\link[partykit]{ctree_control}}: "number of
-surrogate splits to evaluate"}
-
-\item{...}{additional parameters to be passed into
-\code{\link[partykit]{ctree}} function}
-
-\item{testtype}{ctree control parameter, specifying how to compute the}
-
 \item{majority}{ctree control parameter, specifying whether to randomly}
 
 \item{maxsurrogate}{ctree control parameter defining number of surrogate}
+
+\item{maxdepth}{Maximum tree depth (default for 5-STAR is 3)}
+
+\item{...}{additional parameters to be passed into
+\code{\link[partykit]{ctree}} function}
 }
 \value{
 A list of control parameters for strata formation step
 }
 \description{
 Parameters for control of conditional inference tree steps of 5-STAR algorithm
-(3A and 3B) - mainly for passing into ctree and ctree_control functions
+(3A and 3B) - mainly for passing into \code{\link[partykit]{ctree}} and
+\code{\link[partykit]{ctree_control}} functions
 }

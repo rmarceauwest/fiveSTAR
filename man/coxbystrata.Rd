@@ -5,8 +5,9 @@
 \title{Fit CoxPH Model Within Strata}
 \usage{
 coxbystrata(time, status, arm, treeStrata, termNodes = NULL,
-  treetype = "final", cilevel = 0.05, verbose = 0, plot = TRUE,
-  timeunit = NULL)
+  treetype = "final", alternative = "less", cilevel = 0.025,
+  inclfrailty = FALSE, verbose = 0, plot = TRUE, timeunit = NULL,
+  shading = TRUE)
 }
 \arguments{
 \item{time}{Follow-up time for right-censored data}
@@ -15,39 +16,59 @@ coxbystrata(time, status, arm, treeStrata, termNodes = NULL,
 
 \item{arm}{Treatment indicator, 1 = test treatment, 0 = control}
 
-\item{treeStrata}{Vector of strata membership, as defined by ctree strata}
+\item{treeStrata}{Vector of strata membership for each subject
+(where 1 indicates belonging to the highest risk stratum, and the largest
+ number indicates belonging to the lowest risk stratum)}
 
-\item{termNodes}{Vector of names for each tree strata formed (e.g., number of
-strata or covariate definition)}
+\item{termNodes}{Vector of names for each tree strata formed (terminal nodes
+from ctree, representing strata definition in terms of covariates)}
 
 \item{treetype}{String, whether trees input are "preliminary" (e.g.,
-from step 3A) or "final" (e.g., from step 3B)}
+from step 3A) or "final" (e.g., from step 3B). Used only in plotting; ignored
+when plot == FALSE}
+
+\item{alternative}{For tests, whether alternative hypothesis is "less",
+"greater", or "two.sided" (default = "less")}
 
 \item{cilevel}{Confidence level alpha for overall result and confidence
-intervals (i.e., produces (1-cilevel)x100\% CIs)}
+intervals (i.e., produces (1-cilevel)x100\% CIs when alternative="two.sided"
+and (1-2*cilevel)x100\% CIs otherwise) (default = 0.025)}
+
+\item{inclfrailty}{A logical variable - whether or not to include a frailty
+term to each within-strata Cox PH model fit for added robustness against
+unexplained heterogeneity}
 
 \item{verbose}{Numeric variable indicating amount of information to print
-to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)}
+to the terminal (0 = nothing, 1 = notes only, 2+ = notes and intermediate output)}
 
 \item{plot}{Logical, whether to create within strata and pooled between
-strata KM plots}
+strata Kaplan-Meier plots}
 
 \item{timeunit}{Optional argument, time unit for survival data
 (e.g., Months, Years,..); currently only used for plots and ignored if
 plot is FALSE}
+
+\item{shading}{Logical variable; whether or not to show confidence bands around
+Kaplan-Meier curves; ignored when plot != TRUE}
 }
 \value{
 \itemize{
-    \item fitsummary: summary of cox fits within each strata, along with
-    Grambsch-Therneau (GT) tests for PH within each strata
-    \item stratafit: list of full coxph fits within each strata
-    \item table: Summary of amalgamated hazard ratio estimate, variance,
-    p-value, and cilevelx100\% confidence interval assuming sample size weights
+    \item fitsummary: summary of cox fits within each strata (estimated log
+    hazard ratio, variance, (1-cilevel)x100\% CI, and corresponding
+    exponentiated estimates), along with test statistic and p-value for test
+    that logHR = 0 and Pr(logHR<0) for each stratum, Grambsch-Therneau (GT)
+     tests for PH within each strata, and sample size and inverse variance
+     weights for each stratum
+    \item stratafit: a \code{\link[survival]{survfit}} object containing
+    pooled-by-treatment survival information for each strata
+    \item table: Summary of amalgamated (sample-size weighted) hazard ratio
+    estimate, variance, (1-cilevel)x100\% confidence interval, test statistic,
+    and p-value
     \item weights: Sample size weights used to construct estimate
     \item bystrataKM: Kaplan-Meier survival curve plots within each strata,
-    returned if plot = TRUE
+    returned if plot == TRUE
     \item betweenstrataKM: Kaplan-Meier survival curve plots from pooled
-     treatment assignment data from each strata, returned if plot = TRUE
+     treatment assignment data from each strata, returned if plot == TRUE
 }
 }
 \description{

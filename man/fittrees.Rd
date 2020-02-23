@@ -4,11 +4,11 @@
 \alias{fittrees}
 \title{Fit Trees for 5-STAR}
 \usage{
-fittrees(yy, X, family = "cox", cilevel = 0.05, verbose = 0,
+fittrees(yy, X, family = "cox", verbose = 0,
   tree.hyper = tree_control())
 }
 \arguments{
-\item{yy}{Trait/response (currently must be either a binary or continuous
+\item{yy}{Trait/response (either a binary or continuous
 covariate or a Surv() object summarizing follow-up time for right-censored
 data and status indicator where 1=dead, 0=censored)}
 
@@ -16,31 +16,29 @@ data and status indicator where 1=dead, 0=censored)}
 
 \item{family}{Trait family, current options: "cox", "binomial", or "gaussian"}
 
-\item{cilevel}{Confidence level alpha for overall result and confidence
-intervals}
-
 \item{verbose}{Numeric variable indicating amount of information to print
-to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)}
+to the terminal (0 = nothing, 1 = notes only, 2+ = notes and intermediate output)}
 
-\item{tree.hyper}{List of control variables for tree fitting, @seealso
-\code{\link{tree_control}}, many of which will be passed into
- \code{\link[partykit]{ctree_control}}}
+\item{tree.hyper}{List of control variables for tree fitting (see
+\code{\link{tree_control}} for details), many of which will be passed into
+ \code{\link[partykit]{ctree_control}}.}
 }
 \value{
 \itemize{
-    \item strataids: vector of subject-level strata membership
-    \item stratadef: definition of final formed strata, in terms of covariates
-    \item finaltree: final, pruned tree built by ctree, in terms of
-     preliminary strata membership
+    \item strataids: vector of subject-level strata membership (1 = highest risk,
+    2 = 2nd highest risk, etc.)
+    \item stratadefn: definition of final formed strata, in terms of covariates
+    \item finaltree: ctree object; final, pruned tree built by ctree,
+    in terms of preliminary strata membership
     \item prelimstrataids: vector of subject-level strata membership for
      preliminary, unpruned tree
-    \item prelimstratadef: definition of final formed strata, in terms of
+    \item prelimstratadefn: definition of final formed strata, in terms of
     covariates for preliminary, unpruned tree
-    \item prelimtree: preliminary, unpruned tree built by ctree, in terms
-     of covariates
+    \item prelimtree: ctree object; preliminary, unpruned tree built by
+    ctree, in terms of covariates
 }
 }
 \description{
-Fits preliminary (3A) and pruned (3B) trees to determine homogenous risk
+Fits preliminary (3A) and pooled final (3B) trees to determine homogenous risk
 strata for use with 5-STAR algorithm
 }

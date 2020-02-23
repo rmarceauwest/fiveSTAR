@@ -5,12 +5,12 @@
 \title{Prepares data for 5-STAR algorithm}
 \usage{
 prep5STAR(yy, X, family = "cox", missthreshold = c(0.1, 0.2),
-  verbose = 0)
+  verbose = 0, minbucket)
 }
 \arguments{
-\item{yy}{Trait/response (currently must be either continous, binary, or
-a Surv() object summarizing follow-up time for right-censored data and status
- indicator where 1=dead, 0=censored). Ignored for family != "cox"}
+\item{yy}{Trait/response (a Surv() object summarizing follow-up time for
+right-censored data and status indicator where 1=dead, 0=censored).
+Ignored for family != "cox"}
 
 \item{X}{Data frame of all possible stratification covariates}
 
@@ -28,15 +28,16 @@ removed. For family other than "cox", only the first value is used.}
 
 \item{verbose}{Numeric variable indicating amount of information to print
 to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)}
+
+\item{minbucket}{Minimum number of subjects/terminal node}
 }
 \value{
 \itemize{
 \item X: cleaned covariate matrix
-\item input covs: names of all covariates which will be passed into filtering
-step of 5-STAR algorithm
 }
 }
 \description{
-Cleans covariate matrix, removing covariates with too much missingess,
+Cleans covariate matrix, removing covariates with too much missingess or those
+that can't be split on (i.e., due to too few obs/minor levels),
 and coverts all character covariates into factors
 }

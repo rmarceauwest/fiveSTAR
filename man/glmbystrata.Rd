@@ -5,7 +5,7 @@
 \title{Fit Linear or Logistic Regression GLM Model Within Strata}
 \usage{
 glmbystrata(yy, arm, family, treeStrata, termNodes = NULL,
-  cilevel = 0.05, verbose = 0)
+  cilevel = 0.05, verbose = 0, alternative = "two.sided")
 }
 \arguments{
 \item{yy}{Continuous response or case control status response vector}
@@ -29,12 +29,12 @@ to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)
 \itemize{
     \item fitsummary: summary of GLM fits within each strata
     \item table: Summary of amalgamated regression coefficient or odds ratio
-     estimate, variance, p-value, and cilevelx100% confidence interval
+     estimate, variance, p-value, and cilevelx100\% confidence interval
      assuming sample size weights
     \item weights: Sample size weights used to construct estimate
 }
 }
 \description{
 Fits a linear or logistic regression GLM model within each formed strata,
-providing estimate of regression coefficient or log odds ratio
+providing estimate of regression coefficient or log odds ratio (EXPERIMENTAL!)
 }

@@ -4,10 +4,12 @@
 \alias{run5STAR}
 \title{Run 5-STAR Algorithm}
 \usage{
-run5STAR(yy, arm, X, family = "cox", measure = "OR", cilevel = 0.05,
-  missthreshold = c(0.1, 0.2), verbose = 0, plot = TRUE,
-  timeunit = NULL, filter.hyper = filter_control(),
-  tree.hyper = tree_control())
+run5STAR(yy, arm, X, family = "cox", measure = "HR", cilevel = 0.025,
+  alternative = "less", vartype = "null", missthreshold = c(0.1,
+  0.2), timeunit = NULL, tau = NULL, inclfrailty = FALSE,
+  verbose = 0, plot = TRUE, filter.hyper = filter_control(),
+  tree.hyper = tree_control(), distList = c("weibull", "lognormal",
+  "loglogistic"), ucvar = 1, shading = FALSE)
 }
 \arguments{
 \item{yy}{Trait/response (currently must be either continous, binary, or
@@ -16,32 +18,68 @@ a Surv() object summarizing follow-up time for right-censored data and status
 
 \item{arm}{Binary treatment indicator, 1 = test treatment, 0 = control}
 
-\item{X}{Data frame of all possible stratification covariates}
+\item{X}{Data frame of all covariates (as specified in Step 1 of 5-STAR)}
 
 \item{family}{Trait family, current options: "cox", "binomial", and
 "gaussian" (note: binomial and gaussian are still experimental!)}
 
-\item{measure}{Response of interest for binary traits; current options
-are: "RD" (rate difference using Miettinen and Nurminen 1985 method), or
-"OR" (odds ratio, using GLM model fit); ignored for family!="binomial"}
+\item{measure}{Response of interest; current options
+are: for survival traits: "HR" (hazard ratio) and "TR"
+(time ratio from model averaging of AFT models);
+for binary traits: "RD" (rate difference using Miettinen and Nurminen
+1985 method) and "OR" (odds ratio, using GLM model fit);
+ignored for continuous traits}
 
 \item{cilevel}{Confidence level alpha for overall result and confidence
-intervals}
+intervals (default = 0.025, for one-tailed tests)}
 
-\item{verbose}{Numeric variable indicating amount of information to print
-to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)}
+\item{alternative}{For tests, whether alternative hypothesis is "less",
+"greater", or "two.sided". Currently ignored for family!="cox" (all others
+assume a 2-sided test for now)}
 
-\item{plot}{Logical, whether to return summary plots (within strata and
-pooled KM plots, forest plots summarizing strata-level and overall results)}
+\item{vartype}{Whether stratum-level variances used to calculate the correlation
+between sample size ni and ni/sqrt(Vi) test statistics should be calculated
+under the null ("null") or estimated via the Cox PH model ("alt"). "alt"
+is default, and must be used when measure != "HR"}
 
 \item{timeunit}{Optional parameter for plots defining scale of time to event
-data (e.g., "Months", "Years"); ignored for family!="cox"}
+data (e.g., "Months", "Years"); ignored for family!="cox" and plot == FALSE}
 
-\item{filter.hyper}{A list of control parameters for filtering step,
+\item{tau}{Optional numeric variable specifying end time point for rmst
+calculations; if NULL, will calculate the minimum of maximum times over arm
+within each formed stratum; ignored when measure != "RMST"}
+
+\item{inclfrailty}{A logical variable - whether or not to include a frailty
+term to each within-strata Cox PH model fit for added robustness against
+unexplained heterogeneity. Ignored when measure != "HR".}
+
+\item{verbose}{Numeric variable indicating amount of information to print
+to the terminal (0 = nothing, 1 = notes only, 2+ = notes and intermediate output)}
+
+\item{plot}{Logical, whether to return summary plots (filtering plots,
+within strata and pooled KM plots, and forest plots summarizing strata-level
+and overall results)}
+
+\item{filter.hyper}{A list of control parameters for filtering step (Step 2),
 (see \code{\link{filter_control}})}
 
-\item{tree.hyper}{A list of control parameters for strata building step
+\item{tree.hyper}{A list of control parameters for strata building step (Step 3)
 (see \code{\link{tree_control}})}
+
+\item{distList}{Vector of models (survival distributions for parametric AFT
+fit) to include in model averaging; Each element must be the name of an
+element from \code{\link[survival]{survreg.distributions}} (see also
+\code{\link[survival]{survreg}}); default is c("weibull","lognormal","loglogistic");
+ignored when family != "cox"}
+
+\item{ucvar}{Estimator for the unconditional variance of the model averaging
+estimate to use. 1 uses Buckland et al. (1997) analytical estimator, and 2 uses
+the more conservative estimator of Burnham and Anderson (2002) related to
+Bayesian model averaging. For more details see Turek 2013. Default is "1".}
+
+\item{shading}{For plotting, whether to add shaded confidence intervals
+around the pooled KM curves to better differentiate how similar the survival
+curves are. Default is FALSE. Ignored when plot = FALSE and/or family != "cox"}
 
 \item{missthrehold}{Optional parameter specifying proportion of missingness
 allowed for each covariate. See \code{\link{prep5STAR}} for more details.}
@@ -50,15 +88,16 @@ allowed for each covariate. See \code{\link{prep5STAR}} for more details.}
 \itemize{
     \item inputcovs: vector containing names of all covariates input into
     the algorithm (after removing those with too much missingness, as defined
-    by missthreshold)
-    \item filteredcovs: vector containing all covariates left after
-    filtering step
+    by missthreshold, or can't be split on) (see \code{\link{prep5STAR}} for details)
+    \item filteredcovs: vector containing names of all covariates left after
+    filtering step (step 2)
     \item filterdetails: list containing additional output from filter step;
     for method=ENET, this includes: \itemize{
    \item cvout: containing fraction of null deviance explained, mean cross validation
 error, and optimal lambda and alpha value (see cv.glmnet and glmnet for
 more details)
    \item beta: the coefficients of glmnet fit given tuned choice of alpha and lambda
+   \item ENETplot: plots of deviance and solution path over alpha/lambda parameters
 } For method=RF or RFbest, this includes:
 \itemize{
    \item varselectmat: matrix of VIMP confidence intervals, p-values, and selection
@@ -68,8 +107,8 @@ decision for each variable
 making customizable VIMP CI plots
    \item forest: rfsrc object
 }
-    \item prelimtree: preliminary tree (3A) built by ctree, in terms
-     of covariates
+    \item prelimtree: ctree object; preliminary tree (3A) built by ctree,
+    in terms of covariates
     \item prelimstratadefn: vector of rules defining the preliminary strata
     (step 3A), as defined by covariates chosen in initial ctree run, ordered from
     highest to lowest risk
@@ -78,56 +117,53 @@ making customizable VIMP CI plots
     indicates lowest risk, i.e., matching order of prelimstratadefn)
     \item prelimstratasurvfits: a \code{\link[survival]{survfit}} object,
     summarizing survival curves in each preliminary (3A) strata, pooled by
-    treatment assignment; returned when family="cox"
-    \item prelimbystratasummary: matrix summarizing  cox/glm fits within
+    treatment assignment; returned when family=="cox"
+    \item prelimbystratasummary: matrix summarizing  model fits within
     each preliminary (3A) strata, including estimated (log) hazard ratio
-    (or OR, RD, etc. when family != "cox"), corresponding (1-cilevel)x100\%
+    (or TR, OR, RD, etc. when measure!="HR"), corresponding (1-cilevel)x100\%
     CI, Gramsch and Therneau test of non-PH p-value, and sample size,
     inverse variance, and adaptive weights
-    \item prelimadaptivecorr: rank correlation between estimated coefficients
-    beta and corresponding variances from each preliminary (3A) strata
-    \item prelimres5star: Summary of amalgamated hazard ratio (family="cox") or
-    odds ratio (family="binomial") estimate, variance,
+    \item prelimsinglewtres: Preliminary results using only a single
+    weighting scheme (e.g., just ni sample size weights or just ni/Vi weights)
+    \item prelimres5star: Summary of amalgamated estimand, variance,
     p-value, and (1-cilevel)x100\% confidence interval for adaptive weights
     from preliminary strata (3A)
-    \item finaltree: final, pruned tree (3B) built by ctree, in terms of
-     preliminary strata
+    \item finaltree: ctree object; final, pruned tree (3B) built by ctree,
+    in terms of preliminary strata
     \item stratadefn: vector of rules defining the final strata
-    (step 3B), as defined by covariates translated from pruning ctree run,
+    (step 3B), as defined by covariates translated from pooling ctree run,
     ordered from highest to lowest risk
     \item strataids:  vector of final (3B) strata membership for
     each subject (where 1 indicates highest risk, and the largest number
     indicates lowest risk, i.e., matching order of stratadefn)
     \item stratasurvfits: a \code{\link[survival]{survfit}} object,
     summarizing survival curves in each final (3B) strata, pooled by
-    treatment assignment; returned when family="cox"
-    \item bystratasummary: matrix summarizing  cox/glm fits within
+    treatment assignment; returned when family=="cox"
+    \item bystratasummary: matrix summarizing  model fits within
     each final (3B) strata, including estimated (log) hazard ratio (or OR,
-    RD, etc. when family != "cox"), corresponding (1-cilevel)x100\% CI,
+    RD, etc. when measure!="HR"), corresponding (1-cilevel)x100\% CI,
     Gramsch and Therneau test of non-PH p-value, and sample size,
     inverse variance, and adaptive weights
-    \item adaptivecorr: rank correlation between estimated coefficients
-    beta and corresponding variances from each final (3B) strata; used
-    to determine if adaptive weights will combine betas or test statistics
-    \item res5star: Summary of amalgamated hazard ratio (family="cox") or
-    odds ratio (family="binomial") estimate, variance,
+    \item singlewtres: Final results using only a single weighting scheme
+    (e.g., just ni sample size weights or just ni/Vi weights)
+    \item res5star: Summary of amalgamated estimand, variance,
     p-value, and cilevelx100% confidence interval for adaptive weights
     \item prelimbetweenstrataKM: Kaplan-Meier survival curve plots from pooled
      treatment assignment data from each preliminary (3A) strata,
-     returned if plot = TRUE and family = "cox"
+     returned if plot == TRUE and family == "cox"
     \item prelimbystrataKM: Kaplan-Meier survival curve plots within each
-    preliminary (3A) strata, returned if plot = TRUE and family = "cox"
+    preliminary (3A) strata, returned if plot == TRUE and family == "cox"
     \item prelimforestplot: a forest plot summarizing estimated coefficient and
-    confidence interval for each final (3B) strata, as well as amalgamated
-    result
+    confidence interval for each preliminary (3A) strata, as well as amalgamated
+    result, returned when plot == TRUE and family == "cox"
     \item betweenstrataKM: Kaplan-Meier survival curve plots from pooled
      treatment assignment data from each final (3B) strata,
-     returned if plot = TRUE and family = "cox"
+     returned if plot == TRUE and family == "cox"
     \item bystrataKM: Kaplan-Meier survival curve plots within each final
-    (3B) strata, returned if plot = TRUE and family = "cox"
+    (3B) strata, returned if plot == TRUE and family == "cox"
     \item forestplot: a forest plot summarizing estimated coefficient and
     confidence interval for each final (3B) strata, as well as amalgamated
-    result
+    result, returned if plot == TRUE and family == "cox"
 }
 }
 \description{

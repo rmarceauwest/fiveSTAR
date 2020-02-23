@@ -33,11 +33,11 @@ to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)
 \itemize{
     \item fitsummary: summary of rate difference within each strata
     \item table: Summary of amalgamated rate difference estimate, variance,
-    p-value, and cilevelx100% confidence interval assuming sample size weights
+    p-value, and cilevelx100\% confidence interval assuming sample size weights
     \item weights: Sample size weights used to construct estimate
 }
 }
 \description{
 Estimates rate difference and significance within each formed strata using
-methodology of Miettinen and Nurminen (1985)
+methodology of Miettinen and Nurminen (1985) (EXPERIMENTAL!)
 }

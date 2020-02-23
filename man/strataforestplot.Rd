@@ -5,30 +5,34 @@
 \title{Make forest plot to summarize strata fits}
 \usage{
 strataforestplot(MRSSmat, MRSSres, stratafits, family, measure,
-  treetype = "final", labelNames = NULL, cilevel, ...)
+  treetype = "final", labelNames = NULL, cilevel, alternative,
+  descfit = NULL, descRes = NULL, txtgp = forestplot::fpTxtGp(cex =
+  0.9, xlab = grid::gpar(cex = 0.9), ticks = grid::gpar(cex = 0.9), label =
+  grid::gpar(lineheight = 0.75)), wrapwidth = 70, ...)
 }
 \arguments{
 \item{MRSSmat}{matrix summary of model (e.g., cox, glm) fits within each strata
 with required columns "exp.bhat", "exp.ci.lower.", and "exp.ci.upper." (e.g.,
 HR/OR and corresponding confidence interval) and "weight.adap"
 for family = "cox" or "binomial",
-measure="OR, or columns "ratediff", "ci.lower", "ci.upper" for
+measure="OR", or columns "ratediff", "ci.lower", "ci.upper" for
 family = "binomial", measure="RD", or columns "bhat", "ci.lower",
 "ci.upper" for family = "gaussian"}
 
-\item{MRSSres}{row matrix with amalgamated results summary, including estimate
+\item{MRSSres}{Row matrix with amalgamated results summary, including estimate
 and corresponding confidence intervals}
 
-\item{stratafits}{survfit object with number of subjects, median survival
-times, etc. within each strata}
+\item{stratafits}{\code{\link[survival]{survfit}} object with number of
+subjects, median survival times, etc. within each strata}
 
 \item{family}{Trait family, current options: "cox", "binomial, "gaussian"}
 
-\item{measure}{Response of interest for binary traits; current options
-are: "RD" (rate difference using Miettinen and Nurminen 1985 method), or
-"OR" (odds ratio, using GLM model fit); ignored for family!="binomial"}
-
-\item{treetype}{String, whether trees input are "preliminary" or "final"}
+\item{measure}{Response of interest; current options
+are: for survival traits: "HR" (hazard ratio) and "TR"
+(time ratio from model averaging of AFT models);
+for binary traits: "RD" (rate difference using Miettinen and Nurminen
+1985 method) and "OR" (odds ratio, using GLM model fit);
+ignored for continuous traits}
 
 \item{labelNames}{Vector of names for each tree strata formed (e.g., number of
 strata or covariate definition)}
@@ -36,8 +40,23 @@ strata or covariate definition)}
 \item{cilevel}{Confidence level alpha for overall result and confidence
 intervals}
 
+\item{alternative}{Whether to perform two-tailed ("two.tailed) or
+one-tailed ("less" or "greater") test}
+
+\item{descfit}{Matrix summarizing descriptive model fit information (e.g.,
+model averaged AFT estimate, CI, and Pr(TR > 1))}
+
+\item{descRes}{Amalgamated results for descriptive (supplemental) model, e.g.,
+as output from \code{\link{minPadapHR}}}
+
+\item{txtgp}{Additional forestplot graphical parameters to pass to the
+function (see also \code{\link[forestplot]{fpTxtGp}})}
+
+\item{wrapwidth}{Number of characters after which to wrap forest plot label
+names to next line (to avoid forest plot getting too long)}
+
 \item{...}{Optional additional arguments passed into the forestplot function
-(@seealso \code{\link[forestplot]{forestplot}})}
+(see also \code{\link[forestplot]{forestplot}} )}
 }
 \value{
 fplot An annotated forest plot showing by-stratum estimates and

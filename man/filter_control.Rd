@@ -5,12 +5,13 @@
 \title{Control for filtering step of 5-STAR algorithm}
 \usage{
 filter_control(method = "ENET", lambdatype = "min", mixparm = NULL,
-  ...)
+  vimpalpha = 0.05, nfolds = 10, filterseed = 2019, ...)
 }
 \arguments{
 \item{method}{specifying method used for filtering; either "ENET" for
 elastic net, "RF" for random forest using defaults in randomForestSRC package
-(with possible modifications through ...), or "RFbest" for tuned random forest}
+(with possible modifications through "..."), or "RFbest" for tuned random forest
+(slower but more optimized)}
 
 \item{lambdatype}{Optional elastic net parameter; whether to use lambda that
 minimizes cross validation error (lambdatype="min", default) or the largest
@@ -20,6 +21,18 @@ lambda that gives error within 1 standard error of minimum error
 \item{mixparm}{Optional elastic net mixing parameter alpha or grid of alpha
 values to search over. If nothing is entered, will search for best value
 between 0.05 and 0.95. Ignored when method is "RF" or "RFbest"}
+
+\item{vimpalpha}{For "RF" or "RFbest", the significance level for variable
+importance (VIMP) confidence intervals (CIs) to determine which covariates
+are passed through the filtering stage (default = 0.05, ignored for
+method == "ENET")}
+
+\item{nfolds}{Number of folds used for cross validation when tuning the elastic
+net tuning parameter lambda (Default = 10; ignored when method is "RF" or
+"RFbest")}
+
+\item{filterseed}{Seed for the filtering step to control variability in
+cross validation step of the elastic net filtering}
 
 \item{...}{Optional additional arguments passed into
 \code{\link[glmnet]{glmnet}} or \code{\link[randomForestSRC]{rfsrc}} functions}
