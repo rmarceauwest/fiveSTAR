@@ -5,9 +5,9 @@
 \title{Run 5-STAR Algorithm}
 \usage{
 run5STAR(yy, arm, X, family = "cox", measure = "HR", cilevel = 0.025,
-  alternative = "less", vartype = "null", missthreshold = c(0.1,
-  0.2), timeunit = NULL, tau = NULL, inclfrailty = FALSE,
-  verbose = 0, plot = TRUE, filter.hyper = filter_control(),
+  alternative = "less", vartype = "alt", missthreshold = c(0.1, 0.2),
+  timeunit = NULL, tau = NULL, inclfrailty = FALSE, verbose = 0,
+  plot = TRUE, filter.hyper = filter_control(),
   tree.hyper = tree_control(), distList = c("weibull", "lognormal",
   "loglogistic"), ucvar = 1, shading = FALSE)
 }

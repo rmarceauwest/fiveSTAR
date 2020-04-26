@@ -14,7 +14,7 @@ minZpdf = function(y,rho){
 #' Estimates overall treatment effect amalgamated from strata-level treatment
 #' effect estimates, using optimal weighting (i.e., using the the weighting scheme
 #' that gives the best test statistics/minimum p-value, between ni and ni/sqrt(Vi)
-#' weights), paying a minor penalty for taking the best of two corelated test
+#' weights), paying a minor penalty for taking the best of two correlated test
 #' statistics
 #'
 #' @param sf      A \code{\link[survival]{survfit}}
@@ -439,6 +439,13 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
   pv.GTzph = sapply(1:nstrata,function(x)
     cox.zph(coxCtreeStrataFit[[x]])[[1]][,"p"])
 
+  if (verbose >= 3){
+    print("Cox model fits within each stratum:")
+    print(coxCtreeStrataFit)
+    print("Grambsch-Therneau test of PH within each stratum:")
+    print(pv.GTzph)
+  }
+
   #pulling out relevant summary statistics from cox fits to calculate coxSS
   #(amalgamated sample-size weighted log hazard ratio estimate)
   coxMat = matrix(unlist(lapply(coxCtreeStrataFit,function(x){
@@ -505,9 +512,21 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
   colnames(coxMRSSmat) = c("bhat","v(bhat)","ci.lower","ci.upper","exp(bhat)",
                            "exp(ci.lower)","exp(ci.upper)","Zstat","pval",
                            "Pr(beta<0)")
+
+  if (verbose > 2){
+    print("Cox fit within each stratum summary:")
+    print(coxMRSSmat)
+  }
+
   coxMRSSmat.pt2 = matrix(cbind(unlist(coxwSS),unlist(weight.invVar)),
                           nrow=nstrata,byrow=FALSE)
   colnames(coxMRSSmat.pt2) = c("weight.SS","weight.invVar")
+
+  if (verbose > 2){
+    print("Additional weights for strata:")
+    print(coxMRSSmat.pt2)
+  }
+
   coxMRSSmat = cbind(coxMRSSmat,pv.GTzph,coxMRSSmat.pt2)
 
   if (verbose > 1){

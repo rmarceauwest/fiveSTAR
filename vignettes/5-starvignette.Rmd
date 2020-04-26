@@ -1,0 +1,248 @@
+---
+title: "The fiveSTAR Package"
+author: "Rachel Marceau West"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+The *fiveSTAR* package implements the 5-step Stratified Testing and Amalgamation Routine (5-STAR) algorithm for structured patient segregation and testing of overall treatment effect in a randomized clinical trial within a heterogeneous patient population. 
+
+Given response (yy), treatment arm information (arm), and data frame of all candidate covariates (X), the fiveSTAR package runs the 5-STAR algorithm, giving homogeneous risk strata, final amalgamated treatment effect and corresponding p-value.
+
+The 5-STAR algorithm consists of 5 key steps:
+
+1. Pre-specify baseline covariates that may be prognostic for survival
+2. Remove `noise' covariates from the pre-specified candidate list
+3. Segregate the overall population into subpopulations (risk strata) of pronostically homogeneous patients
+4. Perform treatment comparisons within each formed risk stratum
+5. Amalgamate results across formed risk strata for overall hypothesis test and estimation
+
+## Quick Start
+
+To demonstrate use of the package, we consider an example survival dataset from 
+a hypothetical randomized clinical trial consisting of 600 patients, where 300 
+are randomly assigned to test treatment and the remaining 300 are assigned to 
+the control. 
+
+Our example data set consists of 53 columns: ***time***, the observed survival time,
+***status***, the censoring indicator (1 indicates an observed event and 0 indicates 
+censoring), ***arm***, the assigned treatment arm (1 indicates test and 0 indicates 
+control), and 50 candidate covariates: ***X1-X25*** are binary factor variables 
+and ***X26-X50*** are continuous covariates.
+
+```{r loaddata}
+library(fiveSTAR)
+data(survdata, package="fiveSTAR")
+time = survdata$time
+status = survdata$status
+arm = survdata$arm
+X = survdata[,!(colnames(survdata) %in% c("time","status","arm"))]
+```
+
+```{r displaydata, echo=FALSE}
+library(DT)
+DT::datatable(survdata,options=list(scrollX=13))
+```
+
+<!-- A standard Cox PH model applied to this data fails to detect any treatment benefit from the new test treatment, with estimated hazard ratio and corresponding 95% confidence interval of 0.87 (0.70, 1.08) and one sided logrank p-value of 0.105. -->
+
+<!-- ```{r coxph} -->
+<!-- library(survival) -->
+<!-- coxfit = coxph(Surv(time,status) ~ arm) -->
+<!-- summary(coxfit) -->
+<!-- ``` -->
+
+<!-- However, the smoothed log hazard curves show evidence of deviation from the proportional hazards assumption, in agreement with the Grambsch-Therneau (1994) test of PH -->
+
+<!-- ```{r nonPH} -->
+<!-- library(survminer) -->
+<!-- KMfit = survfit(Surv(time,status)~arm,data=survdata) -->
+<!-- KMplot = ggsurvplot(KMfit, conf.int=FALSE, legend.labs = c("Control","Test"), -->
+<!--                       xlab="Time (Months)", ylab="Survival", -->
+<!--                       legend.title="Treatment", -->
+<!--                       risk.table=TRUE,break.time.by=3,data=survdata) -->
+<!-- KMplot -->
+
+<!-- library(bshazard) -->
+<!-- bsA = bshazard(formula = Surv(time,status) ~ 1, data = survdata[arm == 1,]) -->
+<!-- bsB = bshazard(formula = Surv(time,status) ~ 1, data = survdata[arm == 0,]) -->
+
+<!-- #log-hazard plots.. -->
+<!-- Aloghaz_overall = cbind(bsA$time,log(bsA$hazard),log(bsA$lower.ci), -->
+<!--                         log(bsA$upper.ci),1) -->
+
+<!-- Bloghaz_overall = cbind(bsB$time,log(bsB$hazard),log(bsB$lower.ci), -->
+<!--                         log(bsB$upper.ci),0) -->
+
+<!-- logmat_overall = rbind(Aloghaz_overall,Bloghaz_overall) -->
+<!-- colnames(logmat_overall) = c("time","loghazard","lower.loghazard", -->
+<!--                               "upper.loghazard","arm") -->
+<!-- logmat_overall = as.data.frame(logmat_overall) -->
+
+<!-- bshazoverall = ggplot(data=logmat_overall,aes( -->
+<!--     x=time,y=loghazard,color=as.factor(arm),fill=as.factor(arm))) + -->
+<!--     geom_line() + geom_ribbon(aes(x=time,ymin=lower.loghazard, -->
+<!--                                   ymax=upper.loghazard),alpha=0.5) + -->
+<!--     theme_classic() + xlab(paste0("Time (Months)")) + -->
+<!--     ylab("Estimated log(Hazard)") + -->
+<!--     scale_fill_discrete(name="Treatment",labels=c("Control","Test")) + -->
+<!--     scale_color_discrete(name="Treatment",labels=c("Control","Test")) + -->
+<!--     scale_x_continuous(breaks=seq(0,max(time),3)) -->
+
+<!-- ``` -->
+
+In truth, there is heterogeneity in subject prognosis. In particular, there are
+four prognostic risk strata defined by three covariates (X1, X2, and X26 <= or > 0.4). 
+In order to improve estimation via transparent patient risk segregation, we apply the 5-STAR algorithm to the data, inputting response yy, a right-censored survival object, arm, the treatment allocation information, and X, a matrix of candidate covariates specified in Step 1 of the algorithm. Note that X may contain numeric, character, factor, and ordered factor variables.
+
+```{r fivestar, results='hide', fig.show='hide'}
+library(survival)
+cc = run5STAR(yy=Surv(time,status), arm=arm, X=X, measure = "TR")
+```
+
+run5STAR() is the main worker function calling all other subfunctions. 
+The workflow follows the described process:
+
+1. Check/prepare input data -> prep5STAR()
+2. Perform filtering -> filter5STAR()
+3. Form trees -> fittrees()
+4. Perform estimation within each formed strata -> coxbystrata() [HR] or maaftbystrata() [TR]
+5. Aggregate -> minPadapHR()
+
+### Data Cleaning and Preparation within 5-STAR
+
+Data is prepared by first converting all character variables to factors. Next, 
+proportion of missing data within each covariate is checked against the missingness
+threshold as set by the missThreshold value in run5STAR(). missThreshold may be
+a single number, in which case all covariates with proportion missingnes over the 
+inputted threshold will be removed prior to analysis. It can also be a vector of 
+length two, where the second number is a hard threshold as described above, and the first
+is a softer threshold, removing covariates with missingness between the two values 
+unless there is sufficient evidence they may have prognostic value, as evidenced by
+a test of correlation between the blinded subject scores (e.g., logrank scores for
+survival data) and the covariate. By default, missThreshold = c(0.1,0.2) is used,
+indicating all covariates with >20% missingness will be removed and those with 10-20%
+missingness will be removed unless there is sufficient evidence they may be prognostic 
+(e.g., correlated with logrank scores). 
+
+Covariates are also removed prior to analysis if they have no chance of splitting 
+in the algorithm, e.g., if there are no minor categories of a factor variable with
+the minimum number of subjects required per terminal node, as set by minbucket in the 
+tree.hyper variable of run5STAR() (modified via tree_control()). Finally, factor covariates
+with over 31 categories are removed prior to analysis as the Ctree algorithm is 
+unable to handle such covariates. 
+
+Details on removed covariates will be printed to the screen when verbose is set to 1 or higher. 
+Further, a list of all covariates kept after data cleaning is given in the final output
+of run5STAR(). For our example data, all covariates were clean and kept for the analysis.
+
+```{r prep5STAR}
+cc$inputcovs
+```
+
+
+### Filtering
+
+As per the 5-STAR algorithm, the next step is filtering out any covariates with no 
+evidence of assocation between response (e.g., survival times). The fiveSTAR 
+package currently allows users to do this via Cox elastic net regression (default;
+recommended for most scenarios) or random forest. The filtering method and related 
+parameters are controlled through the filter.hyper option in run5STAR, which 
+expects as input a list of options controlled through the filter_control() function. 
+
+We consider the Cox Elastic Net filtering option (method='ENET'), which performs a 
+grid search over mixing parameters and cross-validation within each mixing 
+parameter to jointly select the optimal ENET parameters. By deafult, 10 cross 
+valdidation folds are used to select the tuning parameter and a grid from 0.05 
+to 0.95 with step size of 0.05 is used. These can be changed via the 
+filter_control() options nfolds and mixparm. As there is some variability due to
+fold selection, filterseed may also be set within filter_control(). Further
+options are available for random forest selection, or as additional inputs to the
+glmnet() or randomForestSRC() functions via `...'.
+
+Filtering output is given for the run5STAR() function. For elastic net filtering,
+this includes the list of candidate covariates which pass the filtering step,
+details on the optimal deviance, mixing, and tuning parameters,
+the elastic net beta coefficients from the optimal model, and plots of the 
+deviance/parameter tuning and solution paths.
+
+```{r filter5STAR}
+cc$filteredcovs
+cc$filterdetails$cvout
+cc$filterdetails$beta
+```
+
+```{r filter5STARplot, fig.width=10,fig.height=5}
+plot(cc$filterdetails$ENETplot)
+```
+
+### Strata Formation via CTree
+
+5-STAR uses the CTree algorithm of Hothorn et al. (2006) to form risk-based strata
+blinded to treatment assignment. This is done in two sub-steps. First, preliminary
+trees are fitted on raw covariates that passed through the filtering step. This
+forms preliminary strata, which are ordered by risk level using area under the Kaplan Meier curve up to the minimax time (minimum of maximum survival times over
+all preliminary risk strata). These ordered strata are used as an ordered factor as
+input into the CTree algorithm again to ensure no over-stratification is performed.
+
+Many options are available for control over the strata building step via the tree.hyper option, controlled by the tree_control() function. This mainly consists of options passed through to ctree_control() from the partykit package. Defaults include minimum number of subjects/terminal node (minbucket) of 40, maximum tree depth of 3 (assuming no more than 8 strata), and multiplicity-adjusted 
+significance levels for split tests of 0.1 for preliminary trees and 0.2 for final trees (alpha). 
+
+For our example data, 6 preliminary strata are formed via the CTree algorithm:
+
+```{r prelimtrees5STAR, fig.width = 7, fig.height = 4}
+cc$prelimstratadefn
+plot(cc$prelimtree)
+plot(cc$prelimbetweenstrataKM)
+```
+
+and 4 final strata:
+
+```{r trees5STAR, fig.width = 7, fig.height = 4}
+cc$stratadefn
+plot(cc$finaltree)
+plot(cc$betweenstrataKM)
+```
+
+Subject-level formed strata ids can be obtained if needed for further analysis
+cc\$prelimstrataids for preliminary strata and cc\$strataids for final strata.
+
+### Estimation within each formed strata
+
+When measure = "HR", Cox Proportional Hazards models will be fit within each
+stratum using the coxbystrata() sub function. When measure = "TR", model averaging
+of AFT models will be performed using the maaftbystrata() subfunction. By default 
+this model averaging is done over 3 parametric distributions, as selected through
+the "distList" option: "loglogistic", "weibull", and "lognormal". 
+
+Stratum-level summaries are provided for preliminary and final strata. Below we see the results for the final strata for our hypothetical example:
+
+```{r step4, fig.width=16, fig.height=6}
+cc$bystratasummary
+print(cc$bystrataKM)
+```
+
+In the table above, beta gives the estimand of interest on the log scale (e.g., 
+log hazard ratio or log time ratio).
+
+### Amalgamation of strata-level results
+
+Results are amalgamated to form a final overall treatment effect estimate. The overall results for the hypothetical example is shown below.
+
+```{r finalresults, fig.width=16, fig.height=4}
+cc$res5star
+print(cc$forestplot)
+```

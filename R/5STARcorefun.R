@@ -1254,10 +1254,11 @@ prep5STAR = function(yy,X,family="cox",missthreshold=c(0.1,0.2),verbose=0,
 #' @import partykit
 #' @import survival
 #' @export
-run5STAR = function(yy,arm,X,family="cox",measure="HR",cilevel=0.025,
-                    alternative="less",vartype="null",
-                    missthreshold=c(0.1,0.2),timeunit=NULL,tau=NULL,
-                    inclfrailty=FALSE,verbose=0,plot=TRUE,
+run5STAR = function(yy,arm,X,family="cox",measure="HR",
+                    alternative=ifelse(measure=="TR","greater","less"),
+                    cilevel=ifelse(alternative=="two.sided",0.05,0.025),
+                    vartype="alt",missthreshold=c(0.1,0.2),timeunit=NULL,
+                    tau=NULL,inclfrailty=FALSE,verbose=0,plot=TRUE,
                     filter.hyper = filter_control(),
                     tree.hyper = tree_control(),
                     distList=c("weibull","lognormal","loglogistic"),

@@ -47,6 +47,6 @@ measure == "HR"}
 Estimates overall treatment effect amalgamated from strata-level treatment
 effect estimates, using optimal weighting (i.e., using the the weighting scheme
 that gives the best test statistics/minimum p-value, between ni and ni/sqrt(Vi)
-weights), paying a minor penalty for taking the best of two corelated test
+weights), paying a minor penalty for taking the best of two correlated test
 statistics
 }
