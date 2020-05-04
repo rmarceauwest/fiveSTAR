@@ -14,21 +14,21 @@ License: GPL-2 | GPL-3
 Encoding: UTF-8
 LazyData: true
 Imports:
-    partykit (>= 1.2),
-    survival (>= 2.41),
-    survminer (>= 0.4.3),
+    AICcmodavg,
+    c060,
+    coin,
+    forestplot,
     ggplot2 (>= 3.1.0),
     glmnet (>= 2.0),
-    randomForestSRC (>= 2.7),
-    c060,
-    forestplot,
     grid,
+    gtools,
+    pamr,
+    partykit (>= 1.2),
+    randomForestSRC (>= 2.7),
     RColorBrewer,
     stringr,
-    coin,
-    pamr,
-    gtools,
-    AICcmodavg,
+    survival (>= 2.41),
+    survminer (>= 0.4.3),
     survRM2
 Suggests:
     testthat,

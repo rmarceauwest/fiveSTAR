@@ -932,7 +932,7 @@ prep5STAR = function(yy,X,family="cox",missthreshold=c(0.1,0.2),verbose=0,
   ischar = sapply(X,is.character)
   if (sum(ischar)>0){
     if (verbose > 0) print(paste0("Note: character variable(s) ",
-                 paste(names(XX[ischar]),collapse=", "),
+                 paste(names(X[ischar]),collapse=", "),
                  " being converted to factors"))
     if (sum(ischar)==1){
       X[,ischar] = sapply(X[,ischar],factor)

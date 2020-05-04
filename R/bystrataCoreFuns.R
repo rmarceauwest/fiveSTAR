@@ -133,54 +133,67 @@ minPadapHR = function(sf,betas,vars,cilevel,alternative="less",vartype="alt"){
   betastar = ifelse(usenewwt,beta2,beta1)
   Vstar = ifelse(usenewwt,var2,var1)
 
-  if (alternative == "less"){
+  ### final p-value = minP value = original p-value when only 1 strata
+  if (length(sswts)==1){
 
-    #final p-values
-    pstar = integrate(function(x) minZpdf(x,rho),lower=-Inf,upper=Zstar)$value
-
-    #calculating critical value for CI
-    #note: cilevel is assumed to be desired for correct alternative
-    #(e.g., 0.025 for one-sided)
-    calpha = uniroot(function(x) integrate(function(y)
-      minZpdf(y,rho),lower=-Inf,upper=x)$value - cilevel, lower=-10,
-      upper=0)$root
-
-    #"95"% confidence intervals
+    pstar = minP
+    calpha = ifelse(alternative=="two.sided",qnorm(cilevel/2,0,1),
+                    qnorm(cilevel,0,1))
     CIstar = c(betastar + calpha*sqrt(Vstar),
                betastar - calpha*sqrt(Vstar))
 
-  } else if (alternative == "greater"){
+  } else { ## multiple strata formed
 
-    #final p-values
-    pstar = integrate(function(x) minZpdf(-x,rho),lower=Zstar,upper=Inf)$value
+    if (alternative == "less"){
 
-    #calculating critical value for CI
-    #note: cilevel is assumed to be desired for correct alternative
-    #(e.g., 0.025 for one-sided)
-    calpha = uniroot(function(x) integrate(function(y)
-      minZpdf(-y,rho),lower=x,upper=Inf)$value - cilevel, lower=0,
-      upper=10)$root
+      #final p-values
+      pstar = integrate(function(x) minZpdf(x,rho),lower=-Inf,upper=Zstar)$value
 
-    #"95"% confidence intervals
-    CIstar = c(betastar - calpha*sqrt(Vstar),
-               betastar + calpha*sqrt(Vstar))
+      #calculating critical value for CI
+      #note: cilevel is assumed to be desired for correct alternative
+      #(e.g., 0.025 for one-sided)
+      calpha = uniroot(function(x) integrate(function(y)
+        minZpdf(y,rho),lower=-Inf,upper=x)$value - cilevel, lower=-10,
+        upper=0)$root
 
-  } else if (alternative == "two.sided"){
+      #"95"% confidence intervals
+      CIstar = c(betastar + calpha*sqrt(Vstar),
+                 betastar - calpha*sqrt(Vstar))
 
-    #final p-values
-    pstar = 2*integrate(function(x) minZpdf(-x,rho),lower=abs(Zstar),
-                        upper=Inf)$value
+    } else if (alternative == "greater"){
 
-    #calculating critical value for CI
-    #note: cilevel is assumed to be desired for correct alternative
-    #(e.g., 0.025 for one-sided)
-    calpha = uniroot(function(x) integrate(function(y)
-      minZpdf(-y,rho),lower=x,upper=Inf)$value - cilevel/2, lower=0,
-      upper=10)$root
+      #final p-values
+      pstar = integrate(function(x) minZpdf(-x,rho),lower=Zstar,upper=Inf)$value
 
-    #"95"% confidence intervals
-    CIstar = c(betastar - calpha*sqrt(Vstar),
-               betastar + calpha*sqrt(Vstar))
+      #calculating critical value for CI
+      #note: cilevel is assumed to be desired for correct alternative
+      #(e.g., 0.025 for one-sided)
+      calpha = uniroot(function(x) integrate(function(y)
+        minZpdf(-y,rho),lower=x,upper=Inf)$value - cilevel, lower=0,
+        upper=10)$root
+
+      #"95"% confidence intervals
+      CIstar = c(betastar - calpha*sqrt(Vstar),
+                 betastar + calpha*sqrt(Vstar))
+
+    } else if (alternative == "two.sided"){
+
+      #final p-values
+      pstar = 2*integrate(function(x) minZpdf(-x,rho),lower=abs(Zstar),
+                          upper=Inf)$value
+
+      #calculating critical value for CI
+      #note: cilevel is assumed to be desired for correct alternative
+      #(e.g., 0.025 for one-sided)
+      calpha = uniroot(function(x) integrate(function(y)
+        minZpdf(-y,rho),lower=x,upper=Inf)$value - cilevel/2, lower=0,
+        upper=10)$root
+
+      #"95"% confidence intervals
+      CIstar = c(betastar - calpha*sqrt(Vstar),
+                 betastar + calpha*sqrt(Vstar))
+
+    }
 
   }
 
