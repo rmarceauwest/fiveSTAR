@@ -81,6 +81,7 @@ quiet <- function(x) {
 #' making customizable VIMP CI plots
 #'    \item forest: rfsrc object
 #' }
+#'
 #' @export
 filter5STAR = function(yy,X,family="cox",plot=FALSE,verbose=0,
                        filter.hyper=filter_control(
@@ -532,7 +533,7 @@ simplifyand = function(node){
 #'     ctree, in terms of covariates
 #' }
 #'
-#' @import partykit
+#' @import partykit ctree
 #' @export
 #'
 fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
@@ -921,6 +922,7 @@ tree_control = function(minbucket=40,alpha=c(0.1,0.2),testtype="Bonferroni",
 #' @return \itemize{
 #' \item X: cleaned covariate matrix
 #' }
+#'
 #' @export
 prep5STAR = function(yy,X,family="cox",missthreshold=c(0.1,0.2),verbose=0,
                      minbucket){
@@ -1100,6 +1102,37 @@ prep5STAR = function(yy,X,family="cox",missthreshold=c(0.1,0.2),verbose=0,
   return(X)
 }
 
+################################################################################
+
+#---------------------#
+# cleaning node names #
+#---------------------#
+#(to add more cleaning later)
+cleanNodeNames = function(nodename){
+
+  #R code to human-readable text
+  newname = gsub('%in% c\\(\"',"in {",nodename)
+  newname = gsub('\"\\)',"}",newname)
+
+  #if only one, change "in {}" to "="
+  equalTerms = unlist(regmatches(newname, gregexpr("in \\{.+?\\}", newname)))
+  equalTermsReplace = sapply(equalTerms, function(x){
+    if (length(strsplit(x,",")[[1]]) == 1){
+      x = stringr::str_replace(x,"in \\{(.+?)\\}","= \\1")
+    }
+    return(x)
+  })
+
+  for (i in 1:length(equalTerms)){
+    newname = sub(equalTerms[i],equalTermsReplace[i],newname,fixed=TRUE)
+  }
+
+  #finally, replacing "&" with "," for cleaner naming
+  newname = gsub(" & ",", ",newname)
+
+  return(newname)
+}
+
 
 ################################################################################
 
@@ -1251,7 +1284,6 @@ prep5STAR = function(yy,X,family="cox",missthreshold=c(0.1,0.2),verbose=0,
 #'     result, returned if plot == TRUE and family == "cox"
 #' }
 #'
-#' @import partykit
 #' @import survival
 #' @export
 run5STAR = function(yy,arm,X,family="cox",measure="HR",
@@ -1347,6 +1379,11 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
   treeStrata = trees5STAR$prelimstrataids
   termNodes = trees5STAR$prelimstratadefn
   stree = trees5STAR$prelimtree
+
+  #cleaning node names
+  prunedTermNodes = sapply(prunedTermNodes,cleanNodeNames)
+  termNodes = sapply(termNodes,cleanNodeNames)
+  names(prunedTermNodes) = names(termNodes) = NULL
 
   if (verbose > 1){
     print(paste0("Preliminary Strata: ",termNodes))

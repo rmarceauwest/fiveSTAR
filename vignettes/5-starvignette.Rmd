@@ -30,6 +30,11 @@ The 5-STAR algorithm consists of 5 key steps:
 4. Perform treatment comparisons within each formed risk stratum
 5. Amalgamate results across formed risk strata for overall hypothesis test and estimation
 
+Full details of the algorithm can be found in the manuscript: 
+
+Mehrotra, D.V., Marceau West, R. Survival Analysis Using a 5-Step Stratified Testing and Amalgamation Routine (5-STAR)
+in Randomized Clinical Trials. *Submitted*. 2020. 
+
 ## Quick Start
 
 To demonstrate use of the package, we consider an example survival dataset from 

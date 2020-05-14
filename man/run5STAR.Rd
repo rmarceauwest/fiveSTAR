@@ -4,12 +4,14 @@
 \alias{run5STAR}
 \title{Run 5-STAR Algorithm}
 \usage{
-run5STAR(yy, arm, X, family = "cox", measure = "HR", cilevel = 0.025,
-  alternative = "less", vartype = "alt", missthreshold = c(0.1, 0.2),
-  timeunit = NULL, tau = NULL, inclfrailty = FALSE, verbose = 0,
-  plot = TRUE, filter.hyper = filter_control(),
-  tree.hyper = tree_control(), distList = c("weibull", "lognormal",
-  "loglogistic"), ucvar = 1, shading = FALSE)
+run5STAR(yy, arm, X, family = "cox", measure = "HR",
+  alternative = ifelse(measure == "TR", "greater", "less"),
+  cilevel = ifelse(alternative == "two.sided", 0.05, 0.025),
+  vartype = "alt", missthreshold = c(0.1, 0.2), timeunit = NULL,
+  tau = NULL, inclfrailty = FALSE, verbose = 0, plot = TRUE,
+  filter.hyper = filter_control(), tree.hyper = tree_control(),
+  distList = c("weibull", "lognormal", "loglogistic"), ucvar = 1,
+  shading = FALSE)
 }
 \arguments{
 \item{yy}{Trait/response (currently must be either continous, binary, or
@@ -30,12 +32,12 @@ for binary traits: "RD" (rate difference using Miettinen and Nurminen
 1985 method) and "OR" (odds ratio, using GLM model fit);
 ignored for continuous traits}
 
-\item{cilevel}{Confidence level alpha for overall result and confidence
-intervals (default = 0.025, for one-tailed tests)}
-
 \item{alternative}{For tests, whether alternative hypothesis is "less",
 "greater", or "two.sided". Currently ignored for family!="cox" (all others
 assume a 2-sided test for now)}
+
+\item{cilevel}{Confidence level alpha for overall result and confidence
+intervals (default = 0.025, for one-tailed tests)}
 
 \item{vartype}{Whether stratum-level variances used to calculate the correlation
 between sample size ni and ni/sqrt(Vi) test statistics should be calculated

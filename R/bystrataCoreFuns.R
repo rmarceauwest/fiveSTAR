@@ -747,7 +747,6 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
 #'     pooled-by-treatment survival information for each strata
 #'     \item weights: Sample size weights
 #' }
-#' @import survRM2
 rmstbystrata = function(time,status,arm,tau=NULL,treeStrata,termNodes=NULL,
                         treetype="final",alternative="two.sided",cilevel=0.05,
                         verbose=0,plot=FALSE,timeunit=NULL){
@@ -1899,7 +1898,8 @@ eventsbystrata = function(treeStrata,arm,status,family="cox"){
                                    pctCensorControl,pctCensorTrt),
                                  ncol=2*nstrata,byrow=TRUE)
   colnames(perStrataEventSummary) = paste(rep(paste0("S",1:nstrata),2),
-                                          rep(c("Control","Test"),each=nstrata),sep="-")
+                                          rep(c("Control","Test"),
+                                              each=nstrata),sep="-")
   if (family == "cox"){
     rownames(perStrataEventSummary) = c("nevents","nsubj","pctcensor")
   } else if (family == "binomial"){
