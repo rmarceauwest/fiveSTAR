@@ -1,5 +1,6 @@
+#` @import partykit
 .list.rules.party <- function(x, i = NULL, ...) {
-  if (is.null(i)) i <- nodeids(x, terminal = TRUE)
+  if (is.null(i)) i <- partykit::nodeids(x, terminal = TRUE)
   if (length(i) > 1) {
     ret <- sapply(i, .list.rules.party, x = x)
     names(ret) <- if (is.character(i)) i else names(x)[i]
@@ -10,7 +11,7 @@
   stopifnot(length(i) == 1 & is.numeric(i))
   stopifnot(i <= length(x) & i >= 1)
   i <- as.integer(i)
-  dat <- data_party(x, i)
+  dat <- partykit::data_party(x, i)
   if (!is.null(x$fitted)) {
     findx <- which("(fitted)" == names(dat))[1]
     fit <- dat[,findx:ncol(dat), drop = FALSE]
@@ -25,8 +26,8 @@
   rule <- c()
 
   recFun <- function(node) {
-    if (id_node(node) == i) return(NULL)
-    kid <- sapply(kids_node(node), id_node)
+    if (partykit::id_node(node) == i) return(NULL)
+    kid <- sapply(kids_node(node), partykit::id_node)
     whichkid <- max(which(kid <= i))
     split <- split_node(node)
     ivar <- varid_split(split)
@@ -57,6 +58,6 @@
     rule <<- c(rule, srule)
     return(recFun(node[[whichkid]]))
   }
-  node <- recFun(node_party(x))
+  node <- recFun(partykit::node_party(x))
   paste(rule, collapse = " & ")
 }

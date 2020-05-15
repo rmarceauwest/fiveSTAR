@@ -533,7 +533,7 @@ simplifyand = function(node){
 #'     ctree, in terms of covariates
 #' }
 #'
-#' @import partykit ctree
+#' @import partykit
 #' @export
 #'
 fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
@@ -720,7 +720,7 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
       }
 
     } else{ #case where no initial subgroups are detected
-      streeprune = NULL
+      streeprune = stree#NULL
       termNodes = termNodesFinal = "datdf"
       prunedTermNodes = prunedTermNodesFinal = "datdf"
       pS = as.factor(rep(1,nsubj))
@@ -1116,15 +1116,19 @@ cleanNodeNames = function(nodename){
 
   #if only one, change "in {}" to "="
   equalTerms = unlist(regmatches(newname, gregexpr("in \\{.+?\\}", newname)))
-  equalTermsReplace = sapply(equalTerms, function(x){
-    if (length(strsplit(x,",")[[1]]) == 1){
-      x = stringr::str_replace(x,"in \\{(.+?)\\}","= \\1")
-    }
-    return(x)
-  })
+  if (length(equalTerms) > 0){
 
-  for (i in 1:length(equalTerms)){
-    newname = sub(equalTerms[i],equalTermsReplace[i],newname,fixed=TRUE)
+    equalTermsReplace = sapply(equalTerms, function(x){
+      if (length(strsplit(x,",")[[1]]) == 1){
+        x = stringr::str_replace(x,"in \\{(.+?)\\}","= \\1")
+      }
+      return(x)
+    })
+
+    for (i in 1:length(equalTerms)){
+      newname = sub(equalTerms[i],equalTermsReplace[i],newname,fixed=TRUE)
+    }
+
   }
 
   #finally, replacing "&" with "," for cleaner naming
@@ -1153,11 +1157,10 @@ cleanNodeNames = function(nodename){
 #' @param family  Trait family, current options: "cox", "binomial", and
 #' "gaussian" (note: binomial and gaussian are still experimental!)
 #' @param measure Response of interest; current options
-#' are: for survival traits: "HR" (hazard ratio) and "TR"
-#' (time ratio from model averaging of AFT models);
-#' for binary traits: "RD" (rate difference using Miettinen and Nurminen
-#' 1985 method) and "OR" (odds ratio, using GLM model fit);
-#' ignored for continuous traits
+#' are: for survival traits: "HR" (hazard ratio, default when family = "cox")
+#' and "TR" (time ratio from model averaging of AFT models);
+#' for binary traits: "RD" (rate difference, default when family = "binomial");
+#' for continuous traits: "MD" (mean difference, default when family = "gaussian)
 #' @param cilevel Confidence level alpha for overall result and confidence
 #' intervals (default = 0.025, for one-tailed tests)
 #' @param alternative For tests, whether alternative hypothesis is "less",
@@ -1287,17 +1290,33 @@ cleanNodeNames = function(nodename){
 #' @import survival
 #' @export
 run5STAR = function(yy,arm,X,family="cox",measure="HR",
-                    alternative=ifelse(measure=="TR","greater","less"),
+                    alternative=ifelse(measure=="HR","less","greater"),
                     cilevel=ifelse(alternative=="two.sided",0.05,0.025),
                     vartype="alt",missthreshold=c(0.1,0.2),timeunit=NULL,
                     tau=NULL,inclfrailty=FALSE,verbose=0,plot=TRUE,
-                    filter.hyper = filter_control(),
-                    tree.hyper = tree_control(),
+                    filter.hyper=filter_control(),tree.hyper=tree_control(),
                     distList=c("weibull","lognormal","loglogistic"),
                     ucvar=1,shading=FALSE){
 
-  if (family!="cox") warning("Currently family!='cox' is highly experimental!")
-  else if (!(measure %in% c("HR","TR"))) warning("Currently methodology is highly experimental for method!='TR' or 'HR'!")
+  #setting measure if it is missing
+  if (is.null(measure)){
+
+    if (family == "cox"){
+      measure = "HR"
+    } else if (family == "gaussian"){
+      measure = "MD"
+    } else if (family == "binomial"){
+      measure = "RD"
+    } else stop("family must be one of 'cox', 'gaussian', or 'binomial'.")
+
+  }
+
+  #checking family/measure compatibility
+  if (family!="cox"){
+    warning("Currently family!='cox' is highly experimental!")
+  } else if (!(measure %in% c("HR","TR"))) {
+    warning("Currently methodology is highly experimental for method!='TR' or 'HR'!")
+  }
 
   #need to specify measure if family is binomial or cox
   if (family=="binomial" & !(measure %in% c("RD","OR"))){
@@ -1386,8 +1405,15 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
   names(prunedTermNodes) = names(termNodes) = NULL
 
   if (verbose > 1){
-    print(paste0("Preliminary Strata: ",termNodes))
-    print(paste0("Final Pruned Strata: ",prunedTermNodes))
+
+    if (length (termNodes) > 1){
+      print(paste0("Preliminary Strata: ",termNodes))
+    } else print("No strata were formed at end of step 3A. Preliminary stratum consists of the whole data set.")
+
+    if (length (prunedTermNodes) > 1){
+      print(paste0("Final Pruned Strata: ",prunedTermNodes))
+    } else print("No strata were formed at end of step 3B. Final pruned stratum consists of the whole data set.")
+
   }
 
   #============================================================================#

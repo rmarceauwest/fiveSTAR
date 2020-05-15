@@ -4,8 +4,8 @@
 \alias{run5STAR}
 \title{Run 5-STAR Algorithm}
 \usage{
-run5STAR(yy, arm, X, family = "cox", measure = "HR",
-  alternative = ifelse(measure == "TR", "greater", "less"),
+run5STAR(yy, arm, X, family = "cox", measure = NULL,
+  alternative = ifelse(measure == "HR", "less", "greater"),
   cilevel = ifelse(alternative == "two.sided", 0.05, 0.025),
   vartype = "alt", missthreshold = c(0.1, 0.2), timeunit = NULL,
   tau = NULL, inclfrailty = FALSE, verbose = 0, plot = TRUE,
@@ -26,11 +26,10 @@ a Surv() object summarizing follow-up time for right-censored data and status
 "gaussian" (note: binomial and gaussian are still experimental!)}
 
 \item{measure}{Response of interest; current options
-are: for survival traits: "HR" (hazard ratio) and "TR"
-(time ratio from model averaging of AFT models);
-for binary traits: "RD" (rate difference using Miettinen and Nurminen
-1985 method) and "OR" (odds ratio, using GLM model fit);
-ignored for continuous traits}
+are: for survival traits: "HR" (hazard ratio, default when family = "cox")
+and "TR" (time ratio from model averaging of AFT models);
+for binary traits: "RD" (rate difference, default when family = "binomial");
+for continuous traits: "MD" (mean difference, default when family = "gaussian)}
 
 \item{alternative}{For tests, whether alternative hypothesis is "less",
 "greater", or "two.sided". Currently ignored for family!="cox" (all others
