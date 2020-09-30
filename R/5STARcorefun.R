@@ -255,7 +255,10 @@ filter5STAR = function(yy,X,family="cox",plot=FALSE,verbose=0,
         trimws(strsplit(as.character(x),"\\.")[[1]][1]))
       solnpathdata$lambda = as.numeric(solnpathdata$lambda)
 
-      best.data = solnpathdata[(abs(solnpathdata$lambd-cv$lambda)<1e-6),]
+      #find coefficients corresponding to optimal lambda by cv tuning
+      #note: currently some issue with mismatch between plot and cov2keep
+      #when best beta value is small but non-zero (e.g., 6e-16)
+      best.data = solnpathdata[(abs(solnpathdata$lambda - cv$lambda) < 1e-6),]
       tocolor = unique(best.data$covgroup[abs(best.data$beta) > 0])
       covgroup2 = solnpathdata$covgroup
       covgroup2[!(covgroup2 %in% tocolor)] = "notselected"
@@ -643,10 +646,15 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
 
       } else if (family == "binomial"){
 
-        rmeans = unique(predict(stree,type="prob",simplify=TRUE))[,1]
-        rmeanriskorder = order(rmeans)
+        #below has issues when 2 nodes have same predicted probabilities
+        #rmeans = unique(predict(stree,type="prob",simplify=TRUE))[,1]
+        rmeans = predict(stree,type="prob",simplify=TRUE)[which(
+          !duplicated(predict(stree, type = "node")))]
+        #assuming higher probability = higher risk**
+        rmeanriskorder = order(rmeans, decreasing = TRUE)#order(rmeans)
         orderedstratalevels = unique(pS)[rmeanriskorder]
         pS = ordered(pS,levels=orderedstratalevels)
+        pS = ordered(as.numeric(pS))
 
       } else if (family == "gaussian"){
 
@@ -654,6 +662,7 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
         rmeanriskorder = order(rmeans)
         orderedstratalevels = unique(pS)[rmeanriskorder]
         pS = ordered(pS,levels=orderedstratalevels)
+        pS = ordered(as.numeric(pS))
 
       }
 
@@ -699,8 +708,10 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
         newNodeVars = lapply(newNodeVars,function(x)
           as.numeric(unlist(x)[unlist(x)!=""]))
 
+        #adding robustness: pulling out by termNode names rather than position
         prunedTermNodes = unlist(lapply(newNodeVars,function(x)
           paste(paste0("(",termNodes[x],")"),collapse = " | ")))
+          #paste(paste0("(",termNodes[names(termNodes) %in% x],")"),collapse = " | ")))
         prunedTermNodesFinal = gsub("(^c*)\\(","\\(datdf$",prunedTermNodes)
         prunedTermNodesFinal = gsub("& ","& datdf$",prunedTermNodesFinal)
         prunedTermNodesFinal = gsub("\\| \\(","\\| \\(datdf$",
@@ -1113,6 +1124,7 @@ cleanNodeNames = function(nodename){
   #R code to human-readable text
   newname = gsub('%in% c\\(\"',"in {",nodename)
   newname = gsub('\"\\)',"}",newname)
+  newname = gsub('\\"',"",newname)
 
   #if only one, change "in {}" to "="
   equalTerms = unlist(regmatches(newname, gregexpr("in \\{.+?\\}", newname)))
@@ -1159,8 +1171,8 @@ cleanNodeNames = function(nodename){
 #' @param measure Response of interest; current options
 #' are: for survival traits: "HR" (hazard ratio, default when family = "cox")
 #' and "TR" (time ratio from model averaging of AFT models);
-#' for binary traits: "RD" (rate difference, default when family = "binomial");
-#' for continuous traits: "MD" (mean difference, default when family = "gaussian)
+#' for binary traits: "RD" (risk difference, default when family = "binomial");
+#' for continuous traits: "MD" (mean difference, default when family = "gaussian")
 #' @param cilevel Confidence level alpha for overall result and confidence
 #' intervals (default = 0.025, for one-tailed tests)
 #' @param alternative For tests, whether alternative hypothesis is "less",
@@ -1289,31 +1301,43 @@ cleanNodeNames = function(nodename){
 #'
 #' @import survival
 #' @export
-run5STAR = function(yy,arm,X,family="cox",measure="HR",
-                    alternative=ifelse(measure=="HR","less","greater"),
+run5STAR = function(yy,arm,X,family="cox",#measure="HR",
+                    measure = ifelse(family=="cox","HR",
+                                     ifelse(family=="binomial","RD","MD")),
+                    alternative=ifelse(measure %in% c("HR","RD"),"less","greater"),
                     cilevel=ifelse(alternative=="two.sided",0.05,0.025),
                     vartype="alt",missthreshold=c(0.1,0.2),timeunit=NULL,
                     tau=NULL,inclfrailty=FALSE,verbose=0,plot=TRUE,
-                    filter.hyper=filter_control(),tree.hyper=tree_control(),
+                    filter.hyper=filter_control(),
+                    tree.hyper = if (family == "gaussian"){
+                      tree_control(minbucket=30)
+                    } else tree_control(),
                     distList=c("weibull","lognormal","loglogistic"),
-                    ucvar=1,shading=FALSE){
+                    ucvar=1,shading=FALSE,fplottype="overall"){
 
   #setting measure if it is missing
-  if (is.null(measure)){
+  #(currently ignored as a default is set)
+  # if (is.null(measure)){
+  #
+  #   if (family == "cox"){
+  #     measure = "HR"
+  #   } else if (family == "gaussian"){
+  #     measure = "MD"
+  #   } else if (family == "binomial"){
+  #     measure = "RD"
+  #   } else stop("family must be one of 'cox', 'gaussian', or 'binomial'.")
+  #
+  # }
+  if (!(family %in% c("cox","binomial","gaussian"))) stop(
+    "family must be one of 'cox','binomial', or 'gaussian'.")
 
-    if (family == "cox"){
-      measure = "HR"
-    } else if (family == "gaussian"){
-      measure = "MD"
-    } else if (family == "binomial"){
-      measure = "RD"
-    } else stop("family must be one of 'cox', 'gaussian', or 'binomial'.")
-
-  }
+  message(paste0("Running 5-STAR algorithm with ",family," family and ",measure,
+                 " measure. Alternative hypothesis direction: test ",
+                 alternative," than control."))
 
   #checking family/measure compatibility
   if (family!="cox"){
-    warning("Currently family!='cox' is highly experimental!")
+    warning("Currently family!='cox' is still experimental!")
   } else if (!(measure %in% c("HR","TR"))) {
     warning("Currently methodology is highly experimental for method!='TR' or 'HR'!")
   }
@@ -1334,9 +1358,21 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
                 'the alternative variance (vartype="alt") unless measure == "HR".'))
   }
 
+  #============================================================================#
+
   #------------------------------------------------------#
   # extracting/comining dat of interest to usable format #
   #------------------------------------------------------#
+
+  #removing missing values in response
+  obs2rm = is.na(yy)
+  yy = yy[!obs2rm]
+  X = X[!obs2rm,]
+  arm = arm[!obs2rm]
+
+  if (verbose > 1 & sum(obs2rm > 0)){
+    print(paste0("Removing ",sum(obs2rm)," missing observations."))
+  }
 
   #converting yy to a 1 column matrix if it is a vector
   if (is.null(nrow(yy))) yy = matrix(yy,ncol=1)
@@ -1424,6 +1460,8 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
   #----------------------------------------------------------------------#
 
   statusVec = yy
+  if (is.factor(statusVec)) statusVec = as.numeric(as.character(statusVec))
+
   if (family == "cox") statusVec = yy[,2]
 
   if (family!="gaussian"){
@@ -1539,34 +1577,53 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
     p3prune = prunedByStrataFits$bystrataKM
     p4prune = prunedByStrataFits$betweenstrataKM
 
-  } else if (family=="gaussian"|(family=="binomial" & measure=="OR")){
+  } else if (family == "gaussian" & measure == "MD"){
 
-    ByStrataFits = glmbystrata(yy,arm,family,treeStrata,termNodes,cilevel,
-                               verbose,alternative=alternative)
+    ByStrataFits = mdbystrata(yy=yy,arm=arm,treeStrata=treeStrata,
+                              termNodes=termNodes,cilevel=cilevel,
+                              verbose=verbose,alternative=alternative)
+
     MRSSmat = ByStrataFits$fitsummary
 
-    prunedByStrataFits = glmbystrata(yy=yy,arm=arm,family=family,
-                                     treeStrata=treeStrataPruned,
-                                     termNodes=prunedTermNodes,
-                                     cilevel=cilevel,verbose=verbose,
-                                     alternative=alternative)
+    prunedByStrataFits = mdbystrata(yy=yy,arm=arm,treeStrata=treeStrataPruned,
+                                    termNodes=prunedTermNodes,cilevel=cilevel,
+                                    verbose=verbose,alternative=alternative)
 
     prunedMRSSmat = prunedByStrataFits$fitsummary
 
-    p3 = p4 = p3prune = p4prune = fplot = fplotprune = NULL
+    p3 = p4 = p3prune = p4prune = NULL
+
+    ## no longer allowing "OR"/glm-based option for measure
+  # } else if (family=="gaussian"|(family=="binomial" & measure=="OR")){
+  #
+  #   ByStrataFits = glmbystrata(yy,arm,family,treeStrata,termNodes,cilevel,
+  #                              verbose,alternative=alternative)
+  #   MRSSmat = ByStrataFits$fitsummary
+  #
+  #   prunedByStrataFits = glmbystrata(yy=yy,arm=arm,family=family,
+  #                                    treeStrata=treeStrataPruned,
+  #                                    termNodes=prunedTermNodes,
+  #                                    cilevel=cilevel,verbose=verbose,
+  #                                    alternative=alternative)
+  #
+  #   prunedMRSSmat = prunedByStrataFits$fitsummary
+  #
+  #   p3 = p4 = p3prune = p4prune = fplot = fplotprune = NULL
 
   } else if (family == "binomial" & measure == "RD"){
 
-    ByStrataFits = ratediffbystrata(yy=yy,arm=arm,family=family,
+    ByStrataFits = ratediffbystrata(yy=yy,arm=arm,
                                     treeStrata=treeStrata,
                                     treetype="preliminary",termNodes=termNodes,
+                                    alternative=alternative,
                                     cilevel=cilevel,verbose,plot)
     MRSSmat = ByStrataFits$fitsummary
 
-    prunedByStrataFits = ratediffbystrata(yy=yy,arm=arm,family=family,
+    prunedByStrataFits = ratediffbystrata(yy=yy,arm=arm,
                                           treeStrata=treeStrataPruned,
                                           # treetype="final",
                                           termNodes=prunedTermNodes,
+                                          alternative=alternative,
                                           cilevel=cilevel,verbose,plot)
 
     prunedMRSSmat = prunedByStrataFits$fitsummary
@@ -1603,11 +1660,9 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
   res5starprelim = adaptiveWtResSS$adaptivewtRes
   res5star = adaptiveWtResSSprune$adaptivewtRes
 
-  #single-weight results (currently only calculated when measure is "TR")
-  if (measure == "TR" | measure == "HR"){
-    singlewtresprelim = adaptiveWtResSS$singlewtres
-    singlewtres = adaptiveWtResSSprune$singlewtres
-  } else singlewtresprelim = singlewtres = NULL
+  #single-weight results
+  singlewtresprelim = adaptiveWtResSS$singlewtres
+  singlewtres = adaptiveWtResSSprune$singlewtres
 
   #don't need exp results if trait is quantitative or measure is RD
   if (family == "gaussian"|(family=="binomial" & measure=="RD")|(
@@ -1619,12 +1674,15 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
                             c("exp(beta)", "exp(ci lower)","exp(ci upper)"))]
   }
 
-  #"beta" is actually the rate difference if measure is "RD"
+  #"beta" is actually the risk difference if measure is "RD"
   if (measure=="RD"){
-    names(res5star)[1] = names(res5starprelim)[1] = c("ratediff")
+    names(res5star)[1] = names(res5starprelim)[1] = c("riskdiff")
   }
   if (measure=="RMST"){
     names(res5star)[1] = names(res5starprelim)[1] = c("rmstdiff")
+  }
+  if (measure=="MD"){
+    names(res5star)[1] = names(res5starprelim)[1] = c("meandiff")
   }
 
   #============================================================================#
@@ -1693,7 +1751,8 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
       descRes = minPadapHR(sf=desccox$stratafit,betas=descfit[,"bhat"],
                            vars=descfit[,"v(bhat)"],cilevel=cilevel,
                            alternative=ifelse(alternative=="less",
-                                              "greater","less"),vartype="alt")$adaptivewtRes
+                                              "greater","less"),
+                           vartype="alt")$adaptivewtRes
 
       pruneddesccox = coxbystrata(time=time,status=status,arm=arm,
                                   treeStrata=treeStrataPruned,
@@ -1726,7 +1785,7 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
                              measure=measure,treetype="preliminary",
                              labelNames=termNodes,cilevel=cilevel,
                              alternative=alternative,descfit=descfit,
-                             descRes=descRes)
+                             descRes=descRes,fplottype=fplottype)
 
     #forest plot of final strata
     fplotprune = strataforestplot(MRSSmat = prunedMRSSmat,MRSSres=res5star,
@@ -1734,7 +1793,7 @@ run5STAR = function(yy,arm,X,family="cox",measure="HR",
                                 family=family,measure=measure,treetype="final",
                                 labelNames=prunedTermNodes,cilevel=cilevel,
                                 alternative=alternative,descfit=pruneddescfit,
-                                descRes=pruneddescRes)
+                                descRes=pruneddescRes,fplottype=fplottype)
 
   } else fplot = fplotprune = NULL
 

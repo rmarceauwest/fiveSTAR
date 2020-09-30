@@ -427,7 +427,7 @@ forestplot.default <- function (labeltext,
     # positioned inside the forestplot, i.e. on the top or right side
     if ((!is.list(legend_args$pos) && legend_args$pos == "top") ||
         ("align" %in% names(legend_args$pos) && legend_args$pos[["align"]] == "horizontal")){
-      legend_layout <- grid.layout(nrow=3, ncol=1,
+      legend_layout <- grid::grid.layout(nrow=3, ncol=1,
                                    heights=grid::unit.c(legend_horizontal_height,
                                                   legend_colgap+legend_colgap,
                                                   grid::unit(1, "npc")-
@@ -439,7 +439,7 @@ forestplot.default <- function (labeltext,
       main_pos <- list(row = 3,
                        col = 1)
     }else{
-      legend_layout <- grid.layout(nrow=1, ncol=3,
+      legend_layout <- grid::grid.layout(nrow=1, ncol=3,
                                    widths = grid::unit.c(grid::unit(1, "npc") -
                                                      legend_colgap -
                                                      legend_vertical_width,
@@ -460,7 +460,7 @@ forestplot.default <- function (labeltext,
                                  labels = labels,
                                  nr=nr,
                                  legend_layout=legend_layout))
-    vp <- viewport(layout.pos.row = legend_pos$row,
+    vp <- grid::viewport(layout.pos.row = legend_pos$row,
                    layout.pos.col = legend_pos$col,
                    name = "legend")
     grid::pushViewport(vp)
@@ -478,7 +478,7 @@ forestplot.default <- function (labeltext,
     upViewport()
 
     # Reset to the main plot
-    vp <- viewport(layout.pos.row = main_pos$row,
+    vp <- grid::viewport(layout.pos.row = main_pos$row,
                    layout.pos.col = main_pos$col,
                    name="main")
     grid::pushViewport(vp)
@@ -519,9 +519,9 @@ forestplot.default <- function (labeltext,
 
   # Add space for the axis and the label
   axis_height <- grid::unit(0, "npc")
-  if (is.grob(axisList$axisGrob))
-    axis_height <- axis_height  + grobHeight(axisList$axisGrob)
-  if (is.grob(axisList$labGrob)){
+  if (grid::is.grob(axisList$axisGrob))
+    axis_height <- axis_height  + grid::grobHeight(axisList$axisGrob)
+  if (grid::is.grob(axisList$labGrob)){
     gp_lab_cex <- forestplot:::prGetTextGrobCex(axisList$labGrob)
 
     # The lab grob y actually includes the axis (note negative)
@@ -529,22 +529,22 @@ forestplot.default <- function (labeltext,
       grid::unit(gp_lab_cex+.5, "line")
   }
 
-  axis_layout <- grid.layout(nrow=2,
+  axis_layout <- grid::grid.layout(nrow=2,
                              ncol=1,
                              heights=grid::unit.c(grid::unit(1, "npc") - axis_height,
                                             axis_height))
-  grid::pushViewport(viewport(layout=axis_layout,
+  grid::pushViewport(grid::viewport(layout=axis_layout,
                         name="axis_margin"))
-  grid::pushViewport(viewport(layout.pos.row=1, layout.pos.col=1))
+  grid::pushViewport(grid::viewport(layout.pos.row=1, layout.pos.col=1))
 
   # The base viewport, set the increase.line_height paremeter if it seems a little
   # crowded between the lines that might happen when having multiple comparisons
-  main_grid_layout <- grid.layout(nrow   = nr,
+  main_grid_layout <- grid::grid.layout(nrow   = nr,
                                   ncol   = length(colwidths),
                                   widths = colwidths,
                                   heights = grid::unit(rep(1/nr, nr), "npc"),
                                   respect = TRUE)
-  grid::pushViewport(viewport(layout = main_grid_layout,
+  grid::pushViewport(grid::viewport(layout = main_grid_layout,
                         name="BaseGrid"))
 
   # Create the fourth argument 4 the fpDrawNormalCI() function
@@ -602,7 +602,7 @@ forestplot.default <- function (labeltext,
     clr.marker <- rep(col$box, length.out=length(low_values))
     clr.summary <- rep(col$summary, length.out=length(low_values))
 
-    line_vp <- viewport(layout.pos.row = i,
+    line_vp <- grid::viewport(layout.pos.row = i,
                         layout.pos.col = graph.pos * 2 - 1,
                         xscale = axisList$x_range,
                         name = sprintf("Line_%d_%d", i, graph.pos*2-1))
@@ -720,7 +720,7 @@ forestplot.default <- function (labeltext,
   # Output the legend if it is inside the main plot
   if (!missing(legend) &&
       is.list(legend_args$pos)){
-    plot_vp <- viewport(layout.pos.row = 1:nr,
+    plot_vp <- grid::viewport(layout.pos.row = 1:nr,
                         layout.pos.col = 2 * graph.pos - 1,
                         name = "main_plot_area")
     grid::pushViewport(plot_vp)
@@ -749,7 +749,7 @@ forestplot.default <- function (labeltext,
       height <- sum(legend_args$padding, legend_height, legend_args$padding)
       width <- legend_vertical_width
     }
-    grid::pushViewport(viewport(x=legend_args$pos[["x"]],
+    grid::pushViewport(grid::viewport(x=legend_args$pos[["x"]],
                           y=legend_args$pos[["y"]],
                           width=width,
                           height=height,
