@@ -4,14 +4,16 @@
 \alias{run5STAR}
 \title{Run 5-STAR Algorithm}
 \usage{
-run5STAR(yy, arm, X, family = "cox", measure = NULL,
-  alternative = ifelse(measure == "HR", "less", "greater"),
+run5STAR(yy, arm, X, family = "cox", measure = ifelse(family == "cox",
+  "HR", ifelse(family == "binomial", "RD", "MD")),
+  alternative = ifelse(measure \%in\% c("HR", "RD"), "less", "greater"),
   cilevel = ifelse(alternative == "two.sided", 0.05, 0.025),
   vartype = "alt", missthreshold = c(0.1, 0.2), timeunit = NULL,
   tau = NULL, inclfrailty = FALSE, verbose = 0, plot = TRUE,
-  filter.hyper = filter_control(), tree.hyper = tree_control(),
+  filter.hyper = filter_control(), tree.hyper = if (family ==
+  "gaussian") {     tree_control(minbucket = 30) } else tree_control(),
   distList = c("weibull", "lognormal", "loglogistic"), ucvar = 1,
-  shading = FALSE)
+  shading = FALSE, fplottype = "overall")
 }
 \arguments{
 \item{yy}{Trait/response (currently must be either continous, binary, or
@@ -28,8 +30,8 @@ a Surv() object summarizing follow-up time for right-censored data and status
 \item{measure}{Response of interest; current options
 are: for survival traits: "HR" (hazard ratio, default when family = "cox")
 and "TR" (time ratio from model averaging of AFT models);
-for binary traits: "RD" (rate difference, default when family = "binomial");
-for continuous traits: "MD" (mean difference, default when family = "gaussian)}
+for binary traits: "RD" (risk difference, default when family = "binomial");
+for continuous traits: "MD" (mean difference, default when family = "gaussian")}
 
 \item{alternative}{For tests, whether alternative hypothesis is "less",
 "greater", or "two.sided". Currently ignored for family!="cox" (all others

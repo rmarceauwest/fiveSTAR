@@ -8,10 +8,11 @@ minPadapHR(sf, betas, vars, cilevel, alternative = "less",
   vartype = "alt")
 }
 \arguments{
-\item{sf}{A \code{\link[survival]{survfit}}
+\item{sf}{For survival traits, a \code{\link[survival]{survfit}}
 object containing information on number of subjects,
 number of events, number at risk, etc. for each strata, pooled across
-treatment assignment}
+treatment assignment. For binary and continuous traits, a list of number of
+subjects per stratum, pooled across treatment assignment.}
 
 \item{betas}{Vector of estimated (log) treatment effect within each strata}
 

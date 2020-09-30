@@ -6,9 +6,10 @@
 \usage{
 strataforestplot(MRSSmat, MRSSres, stratafits, family, measure,
   treetype = "final", labelNames = NULL, cilevel, alternative,
-  descfit = NULL, descRes = NULL, txtgp = forestplot::fpTxtGp(cex =
-  0.9, xlab = grid::gpar(cex = 0.9), ticks = grid::gpar(cex = 0.9), label =
-  grid::gpar(lineheight = 0.75)), wrapwidth = 70, ...)
+  descfit = NULL, descRes = NULL, fplottype = NULL,
+  txtgp = forestplot::fpTxtGp(cex = 0.9, xlab = grid::gpar(cex = 0.9),
+  ticks = grid::gpar(cex = 0.9), label = grid::gpar(lineheight = 0.75)),
+  wrapwidth = 70, ...)
 }
 \arguments{
 \item{MRSSmat}{matrix summary of model (e.g., cox, glm) fits within each strata
@@ -30,7 +31,7 @@ subjects, median survival times, etc. within each strata}
 \item{measure}{Response of interest; current options
 are: for survival traits: "HR" (hazard ratio) and "TR"
 (time ratio from model averaging of AFT models);
-for binary traits: "RD" (rate difference using Miettinen and Nurminen
+for binary traits: "RD" (risk difference using Miettinen and Nurminen
 1985 method) and "OR" (odds ratio, using GLM model fit);
 ignored for continuous traits}
 

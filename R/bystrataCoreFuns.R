@@ -17,10 +17,11 @@ minZpdf = function(y,rho){
 #' weights), paying a minor penalty for taking the best of two correlated test
 #' statistics
 #'
-#' @param sf      A \code{\link[survival]{survfit}}
+#' @param sf      For survival traits, a \code{\link[survival]{survfit}}
 #'  object containing information on number of subjects,
 #'  number of events, number at risk, etc. for each strata, pooled across
-#'  treatment assignment
+#'  treatment assignment. For binary and continuous traits, a list of number of
+#'  subjects per stratum, pooled across treatment assignment.
 #' @param betas   Vector of estimated (log) treatment effect within each strata
 #' @param vars    Vector of estimated variances of betas
 #' @param cilevel Significance level for adaptive weighted confidence intervals
@@ -104,6 +105,8 @@ minPadapHR = function(sf,betas,vars,cilevel,alternative="less",vartype="alt"){
   #calculating correlation between the two test statistics
   #note! null variance formula is only really applicable for measure = "HR"!
   if (vartype == "null"){
+    if (family != "cox" | measure != "HR") stop(
+      'Please use vartype = "alt" when not doing hazard ratio-based analysis.')
     Vi0 = 4/summary(sf)$table[,"events"]
     rho = sum(ns^2*sqrt(Vi0))/((sqrt(sum(ns^2*Vi0)))*(sqrt(sum(ns^2))))
   } else if (vartype == "alt"){
@@ -120,7 +123,7 @@ minPadapHR = function(sf,betas,vars,cilevel,alternative="less",vartype="alt"){
   minP = min(p1,p2)
   usenewwt = ifelse(minP==p2,1,0)
   adapwts = sswts
-  if (minP==p2) adapwts=newwts
+  if (minP == p2) adapwts <- newwts
 
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
@@ -450,7 +453,7 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
 
   #calculating GT test for PH within each strata
   pv.GTzph = sapply(1:nstrata,function(x)
-    cox.zph(coxCtreeStrataFit[[x]])[[1]][,"p"])
+    cox.zph(coxCtreeStrataFit[[x]], global = FALSE)[[1]][,"p"])
 
   if (verbose >= 3){
     print("Cox model fits within each stratum:")
@@ -1278,7 +1281,7 @@ roundLabelNums = function(name,digits){
 #' @param measure Response of interest; current options
 #' are: for survival traits: "HR" (hazard ratio) and "TR"
 #' (time ratio from model averaging of AFT models);
-#' for binary traits: "RD" (rate difference using Miettinen and Nurminen
+#' for binary traits: "RD" (risk difference using Miettinen and Nurminen
 #' 1985 method) and "OR" (odds ratio, using GLM model fit);
 #' ignored for continuous traits
 #' @param labelNames Vector of names for each tree strata formed (e.g., number of
@@ -1301,17 +1304,21 @@ roundLabelNums = function(name,digits){
 #' @return fplot An annotated forest plot showing by-stratum estimates and
 #'  confidence intervals, as well as amalgamated result
 #' @import forestplot
+#' @import grid
 strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
                             treetype="final",labelNames=NULL,cilevel,alternative,
-                            descfit=NULL,descRes=NULL,
+                            descfit=NULL,descRes=NULL,fplottype=NULL,
                             txtgp=forestplot::fpTxtGp(
                               cex=0.9,xlab=grid::gpar(cex=0.9),
                               ticks=grid::gpar(cex=0.9),
                               label=grid::gpar(lineheight=0.75)),wrapwidth=70,...){
 
   #extracting summary of strata-level fits, as matrix/data frame
-  stratafittable = summary(stratafits)$table
-  if (is.null(dim(stratafittable))) stratafittable = t(data.frame(stratafittable))
+  if (family == "cox"){
+    stratafittable = summary(stratafits)$table
+    if (is.null(dim(stratafittable))) stratafittable = t(data.frame(stratafittable))
+    nn = stratafits$n
+  } else nn = stratafits[[1]]
 
   #defining/cleaning label names for plot
   nstrata = nrow(MRSSmat)
@@ -1326,13 +1333,15 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
   nlines = max(sapply(labelNames,function(x) stringr::str_count(x, "\n")))
 
   #annotation text to print on forest plot
-  tabletext = paste0(stratafits$n," (",printR(MRSSmat$weight.SS*100,1),")")
+  tabletext = paste0(nn," (",printR(MRSSmat$weight.SS*100,1),")")
 
   tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
                                  substr(treetype,2,100),
                                  " Strata"),labelNames,"5-STAR Average"),
                         c("No. Subjects (%)",tabletext,
                           paste0(sum(stratafits$n)," (100)")))
+
+  confintlevel = ifelse(alternative=="two.sided",cilevel,2*cilevel)
 
   #============================================================================#
 
@@ -1363,8 +1372,6 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
     weightName = ifelse(treetype=="prespecified","Inv.Var Weight %",
                         "Adap. Wt %")
-
-    confintlevel = ifelse(alternative=="two.sided",cilevel,2*cilevel)
 
     #---------------------------------------------------#
 
@@ -1513,12 +1520,16 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
     #============================================================================#
 
-  } else if ((family=="binomial" & measure=="RD")|(
-    family=="cox" & measure=="RMST")){
+  } else if ((family == "gaussian" & measure == "MD")|
+             (family=="binomial" & measure=="RD")|
+             (family=="cox" & measure=="RMST")){
 
     tabletext.weights = MRSSmat$weight.adap
     measurename = measure
     if (measure == "RMST") measurename = "RMST Diff."
+    if (measure == "RD") measurename = "Risk Diff."
+    if (measure == "MD") measurename = "Mean Diff."
+    measurenamelong = paste0(gsub("\\.","",measurename),"erence (Test - Control)")
 
     tabletext.ci = c(paste0(printR(MRSSmat[,1],2)," (",
                             printR(MRSSmat$ci.lower,2),
@@ -1531,14 +1542,59 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     weightName = ifelse(treetype=="prespecified","Inv.Var Weight %",
                         "Adap. Weight %")
 
+    tabletext.prltgt0 = c(printR(MRSSmat[,"Pr.beta.0."],3),"")
+    tabletext.prltgt0[tabletext.prltgt0=="1.000"] = ">0.999"
+    tabletext.prltgt0[tabletext.prltgt0=="0.000"] = "<0.001"
+
+    ltgt0name = paste0("Pr(RD",ifelse(alternative=="greater",">0)","<0)"))
+
     tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
                                    substr(treetype,2,100),
                                    " Strata"),labelNames,"5-STAR Average"),
                           c("No. Subjects (%)",tabletext,
-                            paste0(sum(stratafits$n)," (100)")),
-                          c(weightName,printR(tabletext.weights*100,1),100),
-                          c(paste0(measurename," (",(1-cilevel)*100,"% CI)"),
-                            tabletext.ci))
+                            paste0(sum(nn)," (100)")),
+                          #c(weightName,printR(tabletext.weights*100,1),100),
+                          c(paste0(measurename," (",(1-confintlevel)*100,"% CI)"),
+                            tabletext.ci),
+                          c(ltgt0name,tabletext.prltgt0))
+
+    #adding information on cases if trait is binary
+    if (family == "binomial"){
+
+      tabletext.cases = c("No. Cases (%)",paste0(
+        stratafits$cj," (",printR(stratafits$cj/sum(stratafits$cj)*100,1),")"),
+        paste0(sum(stratafits$cj)," (100)"))
+
+      tabletext.subjA = c("N_A (%)",paste0(
+        stratafits$njA," (",printR(stratafits$njA/sum(stratafits$njA)*100,1),")"),
+        paste0(sum(stratafits$njA)," (100)"))
+      tabletext.subjB = c("N_B (%)",paste0(
+        stratafits$njB," (",printR(stratafits$njB/sum(stratafits$njB)*100,1),")"),
+        paste0(sum(stratafits$njB)," (100)"))
+
+      tabletext.caseA = c("Ncs_A (%)",paste0(
+        stratafits$cjA," (",printR(stratafits$cjA/sum(stratafits$cjA)*100,1),")"),
+        paste0(sum(stratafits$cjA)," (100)"))
+      tabletext.caseB = c("Ncs_B (%)",paste0(
+        stratafits$cjB," (",printR(stratafits$cjB/sum(stratafits$cjB)*100,1),")"),
+        paste0(sum(stratafits$cjB)," (100)"))
+
+      tabletext.frac = c("Cases/Subjs (% Subj)",
+                         paste0(stratafits$cj," / ",stratafits$nj," (",
+                                printR(stratafits$nj/sum(stratafits$nj)*100,1),
+                                ")"),paste0(sum(stratafits$cj)," / ",sum(stratafits$nj),
+                                                " (100)"))
+
+      if (fplottype == "bytrt"){
+        tabletext.all = cbind(tabletext.all[,1],tabletext.subjA,tabletext.subjB,
+                              tabletext.caseA,tabletext.caseB,tabletext.all[,3:4])
+      } else if (fplottype == "fractional"){
+        tabletext.all = cbind(tabletext.all[,1],tabletext.frac,tabletext.all[,3:4])
+      } else {
+        tabletext.all = cbind(tabletext.all[,1:2],tabletext.cases,tabletext.all[,3:4])
+      }
+
+    }
 
     #boxsize: mod from forestplot function
     upper = c(MRSSmat[,"ci.upper"],MRSSres["ci upper"])
@@ -1556,38 +1612,31 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
       textHeight*(nstrata+.5)*1.5/4
     bxsize = 0.2
 
-    xlabname=ifelse(family=="cox","RMST Difference","Rate Difference")
+    clippts = c(-Inf,Inf)
+    if (is.infinite(min(lower))) clippts[1] = min(lower[!is.infinite(lower)])-0.1
+    if (is.infinite(max(upper))) clippts[2] = max(upper[!is.infinite(upper)])+0.1
+
+    xtickpts = seq(plyr::round_any(max(min(lower),clippts[1]),0.1),
+                   plyr::round_any(min(max(upper),clippts[2]),0.1),0.1)
+
+    ncol = ncol(tabletext.all)
+    xlabname=measurenamelong#ifelse(family=="cox","RMST Difference","Risk Difference")
     forestplot::forestplot(
-      labeltext=tabletext.all,align=c("l","c","c","c"),graph.pos=4,
-      graphwidth=grid::unit(4,"inches"),
+      #labeltext=tabletext.all,align=c("l","c","c","c"),graph.pos=4,
+      labeltext=tabletext.all,align=c("l",rep("c",ncol-1)),graph.pos=ncol-1,
+      graphwidth=grid::unit(3.5,"inches"),
       mean=c(NA,MRSSmat[,1],MRSSres[1]),
       lower=c(NA,MRSSmat[,"ci.lower"],MRSSres["ci lower"]),
       upper=c(NA,MRSSmat[,"ci.upper"],MRSSres["ci upper"]),
       is.summary=c(TRUE,rep(FALSE,nstrata),TRUE),xlab=xlabname,zero=0,
-      col=forestplot::fpColors(lines="forestgreen",
-                               box="forestgreen",
-                               summary="green3"),fn.ci_sum = colfn2,
-      lineheight=grid::unit(1.4,"cm"),lwd.zero=2,boxsize=bxsize,
+      col=forestplot::fpColors(
+        lines="darkblue",box="darkblue",summary=c("blue")),fn.ci_sum = colfn,
+      lineheight=grid::unit(1.4+0.3*max(0,nlines-3),"cm"), #grid::unit(1.4,"cm"),
+      lwd.zero=grid::gpar(lwd=2),boxsize=bxsize,clip=clippts,xticks=xtickpts,
       txt_gp=txtgp,...)
 
     fplot = recordPlot()
 
-  } else { #family = "gaussian"
-
-    forestplot::forestplot(
-      labeltext=c(labelNames,"5-STAR Average"),align="c",
-      graphwidth=grid::unit(4,"inches"),
-      mean=c(MRSSmat[,"bhat"],MRSSres["beta"]),
-      lower=c(MRSSmat[,"ci.lower"],MRSSres["ci lower"]),
-      upper=c(MRSSmat[,"ci.upper"],MRSSres["ci upper"]),
-      is.summary=c(rep(FALSE,nstrata),TRUE),xlab="Mean Difference",zero=0,
-      col=forestplot::fpColors(lines="firebrick3",
-                               box="firebrick3",
-                               summary=c("firebrick1")),
-      lineheight=grid::unit(1.4,"cm"),
-      txt_gp=txtgp,...)
-
-    fplot = recordPlot()
   }
 
   return(fplot)
@@ -1712,17 +1761,15 @@ glmbystrata = function(yy,arm,family,treeStrata,termNodes=NULL,cilevel=0.05,
 ################################################################################
 
 ##========================================##
-## Estimate Rate Difference Within Strata ##
+## Estimate Mean Difference Within Strata ##
 ##========================================##
 
-#' Estimate rate difference Within Strata
+#' Estimate mean difference Within Strata
 #'
-#' Estimates rate difference and significance within each formed strata using
-#' methodology of Miettinen and Nurminen (1985) (EXPERIMENTAL!)
+#' Estimates difference in means and significance within each formed strata
 #'
-#' @param yy      Case control status response vector
+#' @param yy      Continuous response vector
 #' @param arm     Treatment indicator, 1 = test treatment, 0 = control
-#' @param family  Family for glm; options: "binomial" or "gaussian"
 #' @param treeStrata Vector of strata membership, as defined by ctree strata
 #' @param treetype String, whether trees input are "preliminary" or "final"
 #' @param termNodes Vector of names for each tree strata formed (e.g., number of
@@ -1731,121 +1778,384 @@ glmbystrata = function(yy,arm,family,treeStrata,termNodes=NULL,cilevel=0.05,
 #' intervals
 #' @param verbose Numeric variable indicating amount of information to print
 #' to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)
-#' @param plot    Logical, whether to create rate difference forest plots
+#' @param plot    Logical, whether to create risk difference forest plots
 #'
 #' @return \itemize{
-#'     \item fitsummary: summary of rate difference within each strata
-#'     \item table: Summary of amalgamated rate difference estimate, variance,
+#'     \item fitsummary: summary of mean difference within each strata
+#'     \item table: Summary of amalgamated mean difference estimate, variance,
 #'     p-value, and cilevelx100\% confidence interval assuming sample size weights
 #'     \item weights: Sample size weights used to construct estimate
 #' }
-ratediffbystrata = function(yy,arm,family,treeStrata,treetype="final",
-                            termNodes=NULL,cilevel=0.05,
+mdbystrata = function(yy,arm,treeStrata,termNodes=NULL,cilevel=0.05,
+                       verbose=0,alternative="two.sided"){
+
+  dat = data.frame(yy,arm)
+  nstrata = max(treeStrata,na.rm=TRUE)
+  if (is.null(termNodes)) termNodes = unique(treeStrata)
+
+  # if (measure == "MD"){
+
+    #performing t-test within each stratum
+    #assume unequal variance per group
+    #setting levels to ensure always subtract arm 1 - arm 0 (vs 0 - 1 by default)
+    mdCtreeStrataFit = lapply(1:nstrata,function(x){
+      t.test(yy ~ factor(arm, levels = c(1,0)), alternative = alternative,
+             var.equal = FALSE, conf.level = 1-cilevel, subset = treeStrata==x,
+             data = dat)
+    })
+
+    if (verbose > 2) print(mdCtreeStrataFit)
+
+    mdtestMat = matrix(unlist(lapply(mdCtreeStrataFit, function(x){
+      meandiff = x$estimate["mean in group 1"] - x$estimate["mean in group 0"]
+      stderr = x$stderr
+      c(meandiff, stderr)
+    })), ncol = 2, byrow = TRUE)
+    mdtestMat[,2] = mdtestMat[,2]^2
+
+  # } else if (measure == "MDnp"){
+  #
+  #   #nonparametric mean difference from Wilcoxon rnak sum test
+  #   mdCtreeStrataFit = lapply(1:nstrata,function(x){
+  #     wilcox.test(yy ~ factor(arm, levels = c(1,0)), alternative = alternative,
+  #                 mu = 0, paired = FALSE, conf.int = TRUE,
+  #                 conf.level = 1-cilevel, subset = treeStrata==x, data = dat)
+  #   })
+  # }
+
+  cnj = sapply(1:nstrata,function(x) sum(treeStrata==x))
+  mdtestMat = cbind(mdtestMat,cnj)
+
+  colnames(mdtestMat) = c("bhatj","vhatj","nj")
+
+  #calculating glmSS
+  mdbeta = mdtestMat[,"bhatj"]
+  mdvar = mdtestMat[,"vhatj"]
+
+  mdwSS = cnj/sum(cnj)
+  mdSS = sum(mdbeta*mdwSS)
+  #mdSS = exp(mdSS)
+  VmdSS = sum(mdwSS^2*mdvar)
+  TmdSS = mdSS/sqrt(VmdSS)
+
+  if (alternative == "two.sided"){
+    pvmdS = 2*pnorm(abs(TmdSS),lower.tail=FALSE,log.p=FALSE)
+  } else if (alternative == "greater"){
+    pvmdSS = pnorm(TmdSS,lower.tail=FALSE,log.p=FALSE)
+  } else if (alternative == "less"){
+    pvmdSS = pnorm(TmdSS,lower.tail=TRUE,log.p=FALSE)
+  } else stop ("Alternative must be one of 'two.sided', 'greater', or 'less'.")
+
+  #calculating probability each betahat is < 0 assuming N(betahat, Vihat) dist'n
+  prlt0 = pnorm(0,mdbeta,sqrt(mdvar))
+  prgt0 = pnorm(0,mdbeta,sqrt(mdvar),lower.tail=FALSE)
+
+  #two-sided test
+  if (alternative == "two.sided"){
+    qcrit = qnorm(1-cilevel/2,0,1)
+  } else qcrit = qnorm(1-cilevel,0,1)
+
+  #overall ci
+  mdci = cbind(mdSS - qcrit*sqrt(VmdSS),mdSS + qcrit*sqrt(VmdSS))
+
+  #inverse variance weights for reference
+  weight.invVar = (1/mdvar)/sum(1/mdvar)
+
+  #amalgamated results using sample size weights
+  mdMRSSres = list(table=data.frame(mdSS=mdSS,vSS=VmdSS,ciSS=mdci,
+                                    TmdSS=TmdSS,pvSS=pvmdSS),
+                    weightSS=mdwSS,weightIV = weight.invVar)
+
+  #confidence intervals within each stratum
+  mdstratci = cbind(mdbeta - qcrit*sqrt(mdvar),
+                    mdbeta + qcrit*sqrt(mdvar))
+
+  #test statistic and p-value for each stratum
+  mdstratT = mdbeta/sqrt(mdvar)
+  if (alternative == "two.sided"){
+    mdstratpv = 2*pnorm(abs(mdstratT),0,1,lower.tail=FALSE)
+  } else if (alternative == "greater"){
+    mdstratpv = pnorm(mdstratT,0,1,lower.tail=FALSE)
+  } else if (alternative == "less"){
+    mdstratpv = pnorm(mdstratT,0,1,lower.tail=TRUE)
+  } else stop ("Alternative must be one of 'two.sided', 'greater', or 'less'.")
+
+  #summarized by-stratum results
+  mdMRSSmat = cbind(mdbeta,mdvar,mdstratci,mdstratT,mdstratpv,
+                    ifelse(rep(alternative=="greater",nstrata),prgt0,prlt0))
+  colnames(mdMRSSmat) = c("bhat","v(bhat)","ci.lower","ci.upper","Zstat","pval",
+                           ifelse(alternative=="greater","Pr(beta>0)",
+                                  "Pr(beta<0)"))
+
+  if (verbose > 2) print(mdMRSSmat)
+
+  mdMRSSmat.pt2 = matrix(cbind(unlist(mdwSS),unlist(weight.invVar)),
+                          nrow=nstrata,byrow=FALSE)
+  colnames(mdMRSSmat.pt2) = c("weight.SS","weight.invVar")
+
+  mdMRSSmat = cbind(mdMRSSmat,mdMRSSmat.pt2)
+
+  if (verbose > 1){
+    print("Esimated mean difference fit within each strata")
+    print(round(mdMRSSmat,4))
+  }
+
+  #KM curves ignoring treatment arm indicator
+  # Stratum = as.factor(treeStrata)
+  # s <- list(sapply(unique(Stratum), function(x) sum(Stratum==x)))
+  #need order to match order of the strata being output
+  s <- list(cnj)
+  #list(unname(table(Stratum)))
+
+  #============================================================================#
+
+  return(list(fitsummary=mdMRSSmat, table=mdMRSSres$table, stratafit=s,
+              weights=mdMRSSres$weightSS))
+}
+
+
+################################################################################
+
+##========================================##
+## Estimate Risk Difference Within Strata ##
+##========================================##
+
+#' Estimate Risk Difference Within Strata
+#'
+#' Estimates risk difference and significance within each formed strata
+#'
+#' @param yy      Case control status response vector
+#' @param arm     Treatment indicator, 1 = test treatment, 0 = control
+#' @param treeStrata Vector of strata membership, as defined by ctree strata
+#' @param treetype String, whether trees input are "preliminary" or "final"
+#' @param termNodes Vector of names for each tree strata formed (e.g., number of
+#' strata or covariate definition)
+#' @param alternative For tests, whether alternative hypothesis is "less",
+#'  "greater", or "two.sided" (default = "two.sided")
+#' @param cilevel Confidence level alpha for overall result and confidence
+#' intervals
+#' @param verbose Numeric variable indicating amount of information to print
+#' to the terminal (0 = nothing, 1 = notes only, 2 = notes and intermediate output)
+#' @param plot    Logical, whether to create risk difference forest plots
+#'
+#' @return \itemize{
+#'     \item fitsummary: summary of risk difference within each strata
+#'     \item table: Summary of amalgamated risk difference estimate, variance,
+#'     p-value, and cilevelx100\% confidence interval assuming sample size weights
+#'     \item weights: Sample size weights used to construct estimate
+#' }
+ratediffbystrata = function(yy,arm,treeStrata,treetype="final",
+                            termNodes=NULL,alternative="two.sided",cilevel=0.05,
                             verbose=0,plot=TRUE){
 
   dat = data.frame(yy,arm)
   nstrata = max(treeStrata,na.rm=TRUE)
   if (is.null(termNodes)) termNodes = unique(treeStrata)
 
-  #alt to glm: rate difference test within each strata
-  rdCtreeStrataFit = lapply(1:nstrata,function(x) {
-    datx = dat[treeStrata==x,]
-    c1 = sum(datx$yy[datx$arm==1])
-    S1 = sum(datx$arm==1)
-    c0 = sum(datx$yy[datx$arm==0])
-    S0 = sum(datx$arm==0)
+  #alt to glm: risk difference test within each strata (Wald-based)
+  rdCtreeStrataFit = lapply(1:nstrata, function(x) {
 
-    r1 = c1/S1; r0 = c0/S0
-    c=c1+c0; S=S1+S0; r = c/S
+    #data for strata overall and strata for each treatment arm
+    datx = dat[treeStrata == x,]
+    datx0 = datx[datx$arm == 0,]
+    datx1 = datx[datx$arm == 1,]
 
-    #proper chisq stat for RD = 0 (R1 = R0):
-    RDall=ratesci::scoreci(c1,S1,c0,S0,distrib="bin",measure="RD",level=1-cilevel,
-                           skew=FALSE,weighting="MN")
-    Ts0 = ( (r1-r0)^2 )/( r*(1-r)*(S/(S-1))*(1/S1+1/S0) )
+    #number of cases in each arm
+    c0 = sum(datx0$yy == 1)
+    c1 = sum(datx1$yy == 1)
 
-    #########calc variance
-    RD = 0
-    L0 = c0*RD*(1-RD)
-    L1 = (S0*RD - S - 2*c0)*RD+c
-    L2 = (S1+2*S0)*RD-S-c
-    L3 = S
+    #number of subjects in each arm
+    n0 = nrow(datx0)
+    n1 = nrow(datx1)
 
-    q = L2^3/(3*L3)^3 - L1*L2/(6*L3^2) + L0/(2*L3)
-    sgn = sign(q)
-    p = sgn*(L2^2/(3*L3)^2 - L1/(3*L3))^(1/2)
-    if (sign(p) != sign(q)) p = -p
-    a = (1/3)*(pi + acos(q/p^3))
-    R0tilde = 2*p*cos(a) - L2/(3*L3)
-    R1tilde = R0tilde + RD
+    #proportion of cases in each arm
+    p0 = c0/n0
+    p1 = c1/n1
 
-    VarRD = (R1tilde*(1-R1tilde)/S1 + R0tilde*(1-R0tilde)/S0)*(S/(S+1))
-    ################################
-    RDall$var = VarRD
-    RDall
+    #risk difference and corresponding wald-based variance (bias-adjusted)
+    RD = p1 - p0
+    varRD = p0*(1-p0)/(n0-1) + p1*(1-p1)/(n1-1)
+    return(c(RD, varRD, n0+n1, n0, n1, c0+c1, c0, c1))
 
   })
 
-  #pulling out relevant summary statistics from glm fits to calculate glmSS
-  rdMat = matrix(unlist(lapply(rdCtreeStrataFit,function(x){
-    cbind(x$estimates[,"MLE"],x$var)
-  } )),ncol=2,byrow=TRUE)
-  cnj = sapply(1:nstrata,function(x) sum(treeStrata==x))
-  rdMat = cbind(rdMat,cnj)
-  colnames(rdMat) = c("rdj","vhatj","nj")
+  rdMat = matrix(unlist(rdCtreeStrataFit),ncol=8,byrow=TRUE)
+  colnames(rdMat) = c("rdj","vhatj","nj", "njB", "njA", "cj", "cjB", "cjA")
+
+  # #alt to glm: risk difference test within each strata (MN/score-based)
+  # rdCtreeStrataFit = lapply(1:nstrata,function(x) {
+  #   datx = dat[treeStrata==x,]
+  #   c1 = sum(datx$yy[datx$arm==1])
+  #   S1 = sum(datx$arm==1)
+  #   c0 = sum(datx$yy[datx$arm==0])
+  #   S0 = sum(datx$arm==0)
+  #
+  #   r1 = c1/S1; r0 = c0/S0
+  #   c=c1+c0; S=S1+S0; r = c/S
+  #
+  #   #proper chisq stat for RD = 0 (R1 = R0):
+  #   RDall=ratesci::scoreci(c1,S1,c0,S0,distrib="bin",measure="RD",level=1-cilevel,
+  #                          skew=FALSE,weighting="MN")
+  #   Ts0 = ( (r1-r0)^2 )/( r*(1-r)*(S/(S-1))*(1/S1+1/S0) )
+  #
+  #   #########calc variance
+  #   RD = 0
+  #   L0 = c0*RD*(1-RD)
+  #   L1 = (S0*RD - S - 2*c0)*RD+c
+  #   L2 = (S1+2*S0)*RD-S-c
+  #   L3 = S
+  #
+  #   q = L2^3/(3*L3)^3 - L1*L2/(6*L3^2) + L0/(2*L3)
+  #   sgn = sign(q)
+  #   p = sgn*(L2^2/(3*L3)^2 - L1/(3*L3))^(1/2)
+  #   if (sign(p) != sign(q)) p = -p
+  #   a = (1/3)*(pi + acos(q/p^3))
+  #   R0tilde = 2*p*cos(a) - L2/(3*L3)
+  #   R1tilde = R0tilde + RD
+  #
+  #   VarRD = (R1tilde*(1-R1tilde)/S1 + R0tilde*(1-R0tilde)/S0)*(S/(S+1))
+  #   ################################
+  #   RDall$var = VarRD
+  #   RDall
+  #
+  # })
+
+  # #pulling out relevant summary statistics from glm fits to calculate glmSS
+  # rdMat = matrix(unlist(lapply(rdCtreeStrataFit,function(x){
+  #   cbind(x$estimates[,"MLE"],x$var)
+  # } )),ncol=2,byrow=TRUE)
+  # cnj = sapply(1:nstrata,function(x) sum(treeStrata==x))
+  # rdMat = cbind(rdMat,cnj)
+  # colnames(rdMat) = c("rdj","vhatj","nj")
 
   #calculating rdS
   rdest = rdMat[,"rdj"]
   rdvar = rdMat[,"vhatj"]
+  cnj = rdMat[,"nj"]
 
   rdwSS = cnj/sum(cnj)
   rdSS = sum(rdest*rdwSS)
   rdSSp = rdSS*100
   VrdSS = sum(rdwSS^2*rdvar)
   TrdSS = rdSS/sqrt(VrdSS)
-  pvrdSS = 2*pnorm(abs(TrdSS),lower.tail=FALSE,log.p=FALSE)
+
+  if (alternative == "two.sided"){
+    pvrdSS = 2*pnorm(abs(TrdSS),lower.tail=FALSE,log.p=FALSE)
+  } else if (alternative == "greater"){
+    pvrdSS = pnorm(TrdSS,lower.tail=FALSE,log.p=FALSE)
+  } else if (alternative == "less"){
+    pvrdSS = pnorm(TrdSS,lower.tail=TRUE,log.p=FALSE)
+  } else stop ("Alternative must be one of 'two.sided', 'greater', or 'less'.")
+
+  # #two-sided test
+  # qcrit = qnorm(1-cilevel/2,0,1)
+  #
+  # #overall and within-strata cis
+  # rdci = cbind(rdSS - qcrit*sqrt(VrdSS),rdSS + qcrit*sqrt(VrdSS))
+  # rdcip = rdci*100
+  # rdstratci2 = cbind(rdest - qcrit*sqrt(rdvar),
+  #                    rdest + qcrit*sqrt(rdvar))
+  # rdstratci = matrix(unlist(lapply(rdCtreeStrataFit,function(x){
+  #   x$estimates[,c("Lower","Upper")]
+  # })),ncol=2,byrow=TRUE)
+  #
+  # rdstratpv = sapply(rdCtreeStrataFit,function(x){
+  #   x$pval[,"pval2sided"]
+  # })
+  # rdstratpv2 = 2*pnorm(abs(rdest/sqrt(rdvar)),0,1,lower.tail=FALSE)
+  #
+  # #compiling within-strata effect estimate summary matrix
+  # rdMRSSmat = cbind(rdest,rdvar,rdstratci,rdstratpv)
+  # colnames(rdMRSSmat) = c("ratediff","v(ratediff)","ci.lower","ci.upper","pval")
+  #
+  # rdMRSSres = list(table=data.frame(ratediffSS=rdSS,vSS=VrdSS,ciSS=rdci,
+  #                                   pvSS=pvrdSS),weightSS=rdwSS)
+  #
+  # rdMRSSmat.pt2 = matrix(unlist(rdwSS),nrow=nstrata,byrow=FALSE)
+  # colnames(rdMRSSmat.pt2) = c("weight.SS")
+  # rdMRSSmat = cbind(rdMRSSmat,rdMRSSmat.pt2)
+  # labelNames = paste0("S",1:nstrata)
+  # if (treetype == "preliminary"){
+  #   labelNames = paste0("p",labelNames)
+  # }
+  # rownames(rdMRSSmat) = labelNames
+  #
+  # if (verbose > 1){
+  #   print("Estimated risk difference within each strata")
+  #   print(round(rdMRSSmat,4))
+  # }
+  #
+  # #============================================================================#
+  #
+  # return(list(fitsummary=rdMRSSmat,table=rdMRSSres$table,
+  #             weights=rdMRSSres$weightSS))
+
+  #calculating probability each betahat is < 0 assuming N(betahat, Vihat) dist'n
+  prlt0 = pnorm(0,rdest,sqrt(rdvar))
+  prgt0 = pnorm(0,rdest,sqrt(rdvar),lower.tail=FALSE)
 
   #two-sided test
-  qcrit = qnorm(1-cilevel/2,0,1)
+  if (alternative == "two.sided"){
+    qcrit = qnorm(1-cilevel/2,0,1)
+  } else qcrit = qnorm(1-cilevel,0,1)
 
-  #overall and within-strata cis
+  #overall ci
   rdci = cbind(rdSS - qcrit*sqrt(VrdSS),rdSS + qcrit*sqrt(VrdSS))
-  rdcip = rdci*100
-  rdstratci2 = cbind(rdest - qcrit*sqrt(rdvar),
-                     rdest + qcrit*sqrt(rdvar))
-  rdstratci = matrix(unlist(lapply(rdCtreeStrataFit,function(x){
-    x$estimates[,c("Lower","Upper")]
-  })),ncol=2,byrow=TRUE)
 
-  rdstratpv = sapply(rdCtreeStrataFit,function(x){
-    x$pval[,"pval2sided"]
-  })
-  rdstratpv2 = 2*pnorm(abs(rdest/sqrt(rdvar)),0,1,lower.tail=FALSE)
+  #inverse variance weights for reference
+  weight.invVar = (1/rdvar)/sum(1/rdvar)
 
-  #compiling within-strata effect estimate summary matrix
-  rdMRSSmat = cbind(rdest,rdvar,rdstratci,rdstratpv)
-  colnames(rdMRSSmat) = c("ratediff","v(ratediff)","ci.lower","ci.upper","pval")
+  #amalgamated results using sample size weights
+  rdMRSSres = list(table=data.frame(rdSS=rdSS,vSS=VrdSS,ciSS=rdci,
+                                    TrdSS=TrdSS,pvSS=pvrdSS),
+                   weightSS=rdwSS,weightIV = weight.invVar)
 
-  rdMRSSres = list(table=data.frame(ratediffSS=rdSS,vSS=VrdSS,ciSS=rdci,
-                                    pvSS=pvrdSS),weightSS=rdwSS)
+  #confidence intervals within each stratum
+  rdstratci = cbind(rdest - qcrit*sqrt(rdvar),
+                    rdest + qcrit*sqrt(rdvar))
 
-  rdMRSSmat.pt2 = matrix(unlist(rdwSS),nrow=nstrata,byrow=FALSE)
-  colnames(rdMRSSmat.pt2) = c("weight.SS")
+  #test statistic and p-value for each stratum
+  rdstratT = rdest/sqrt(rdvar)
+  if (alternative == "two.sided"){
+    rdstratpv = 2*pnorm(abs(rdstratT),0,1,lower.tail=FALSE)
+  } else if (alternative == "greater"){
+    rdstratpv = pnorm(rdstratT,0,1,lower.tail=FALSE)
+  } else if (alternative == "less"){
+    rdstratpv = pnorm(rdstratT,0,1,lower.tail=TRUE)
+  } else stop ("Alternative must be one of 'two.sided', 'greater', or 'less'.")
+
+  #summarized by-stratum results
+  rdMRSSmat = cbind(rdest,rdvar,rdstratci,rdstratT,rdstratpv,
+                    ifelse(alternative==rep("greater",nstrata),prgt0,prlt0))
+  colnames(rdMRSSmat) = c("bhat","v(bhat)","ci.lower","ci.upper","Zstat","pval",
+                          ifelse(alternative=="greater","Pr(beta>0)",
+                                 "Pr(beta<0)"))
+
+  rdMRSSmat.pt2 = matrix(cbind(unlist(rdwSS),unlist(weight.invVar)),
+                         nrow=nstrata,byrow=FALSE)
+  colnames(rdMRSSmat.pt2) = c("weight.SS","weight.invVar")
+
   rdMRSSmat = cbind(rdMRSSmat,rdMRSSmat.pt2)
-  labelNames = paste0("S",1:nstrata)
-  if (treetype == "preliminary"){
-    labelNames = paste0("p",labelNames)
-  }
-  rownames(rdMRSSmat) = labelNames
 
   if (verbose > 1){
-    print("Estimated rate difference within each strata")
+    print("Esimated mean difference fit within each strata")
     print(round(rdMRSSmat,4))
   }
 
+  #No. subjects and No. cases by strata overall, and by treatment assignment
+  casesubjMat <- rdMat[,3:8]
+  if (is.null(ncol(casesubjMat))){
+    casesubjMat <- matrix(casesubjMat, nrow=1,
+                          dimnames = list(1,colnames(rdMat)[3:8]))
+  }
+  s <- split(casesubjMat, rep(1:ncol(casesubjMat), each = nrow(casesubjMat)))
+  names(s) <- colnames(casesubjMat)
+
   #============================================================================#
 
-  return(list(fitsummary=rdMRSSmat,table=rdMRSSres$table,
+  return(list(fitsummary=rdMRSSmat, table=rdMRSSres$table, stratafit=s,
               weights=rdMRSSres$weightSS))
+
 }
 
 ################################################################################

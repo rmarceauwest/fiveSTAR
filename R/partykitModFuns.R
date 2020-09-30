@@ -27,25 +27,25 @@
 
   recFun <- function(node) {
     if (partykit::id_node(node) == i) return(NULL)
-    kid <- sapply(kids_node(node), partykit::id_node)
+    kid <- sapply(partykit::kids_node(node), partykit::id_node)
     whichkid <- max(which(kid <= i))
-    split <- split_node(node)
-    ivar <- varid_split(split)
+    split <- partykit::split_node(node)
+    ivar <- partykit::varid_split(split)
     svar <- names(dat)[ivar]
-    index <- index_split(split)
+    index <- partykit::index_split(split)
     if (is.factor(dat[, svar])) {
-      if ((is.null(index)) | (!is.null(breaks_split(split))))
-        index <- ((1:nlevels(dat[, svar])) > breaks_split(split)) + 1
+      if ((is.null(index)) | (!is.null(partykit::breaks_split(split))))
+        index <- ((1:nlevels(dat[, svar])) > partykit::breaks_split(split)) + 1
       slevels <- levels(dat[, svar])[index == whichkid]
       srule <- paste(svar, " %in% c(\"",
                      paste(slevels, collapse = "\", \"", sep = ""), "\")",
                      sep = "")
     } else {
       if (is.null(index)) index <- 1:length(kid)
-      breaks <- cbind(c(-Inf, breaks_split(split)),
-                      c(breaks_split(split), Inf))
+      breaks <- cbind(c(-Inf, partykit::breaks_split(split)),
+                      c(partykit::breaks_split(split), Inf))
       sbreak <- breaks[index == whichkid,]
-      right <- right_split(split)
+      right <- partykit::right_split(split)
       srule <- c()
       if (is.finite(sbreak[1]))
         srule <- c(srule,
