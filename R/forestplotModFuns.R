@@ -475,7 +475,7 @@ forestplot.default <- function (labeltext,
                    padding = legend_args$padding,
                    fn.legend = fn.legend,
                    ...)
-    upViewport()
+    grid::upViewport()
 
     # Reset to the main plot
     vp <- grid::viewport(layout.pos.row = main_pos$row,
@@ -714,7 +714,7 @@ forestplot.default <- function (labeltext,
         eval(as.call(call_list))
     }
 
-    upViewport()
+    grid::upViewport()
   }
 
   # Output the legend if it is inside the main plot
@@ -764,10 +764,10 @@ forestplot.default <- function (labeltext,
                    padding = legend_args$padding,
                    fn.legend = fn.legend,
                    ...)
-    upViewport(2)
+    grid::upViewport(2)
   }
 
   # Go back to the original viewport
   seekViewport("forestplot_margins")
-  upViewport(2)
+  grid::upViewport(2)
 }

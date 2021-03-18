@@ -1332,8 +1332,9 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
     "family must be one of 'cox','binomial', or 'gaussian'.")
 
   message(paste0("Running 5-STAR algorithm with ",family," family and ",measure,
-                 " measure. Alternative hypothesis direction: test ",
-                 alternative," than control."))
+                 " measure. Alternative hypothesis direction: ",
+                 ifelse(alternative == 'two.sided',"two.sided",paste0("test ",
+                 alternative," than control."))))
 
   #checking family/measure compatibility
   if (family!="cox"){
@@ -1580,18 +1581,25 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
   } else if (family == "gaussian" & measure == "MD"){
 
     ByStrataFits = mdbystrata(yy=yy,arm=arm,treeStrata=treeStrata,
+                              treetype='preliminary',
                               termNodes=termNodes,cilevel=cilevel,
-                              verbose=verbose,alternative=alternative)
+                              verbose=verbose,alternative=alternative,
+                              plot=plot)
 
     MRSSmat = ByStrataFits$fitsummary
 
     prunedByStrataFits = mdbystrata(yy=yy,arm=arm,treeStrata=treeStrataPruned,
+                                    treetype='final',
                                     termNodes=prunedTermNodes,cilevel=cilevel,
-                                    verbose=verbose,alternative=alternative)
+                                    verbose=verbose,alternative=alternative,
+                                    plot=plot)
 
     prunedMRSSmat = prunedByStrataFits$fitsummary
 
-    p3 = p4 = p3prune = p4prune = NULL
+    p3 = ByStrataFits$p3
+    p4 = ByStrataFits$p4
+    p3prune = prunedByStrataFits$p3
+    p4prune = prunedByStrataFits$p4
 
     ## no longer allowing "OR"/glm-based option for measure
   # } else if (family=="gaussian"|(family=="binomial" & measure=="OR")){
@@ -1713,8 +1721,8 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
 
       descRes = minPadapHR(sf=descaft$stratafit,betas=descfit[,"bhat"],
                            vars=descfit[,"v(bhat)"],cilevel=cilevel,
-                           alternative=ifelse(alternative=="less",
-                                              "greater","less"),
+                           alternative=ifelse(alternative=="greater",
+                                              "less","greater"),
                            vartype="alt")$adaptivewtRes
 
       pruneddescaft = maaftbystrata(time=time,status=status,arm=arm,
@@ -1729,8 +1737,8 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
       pruneddescRes = minPadapHR(sf=pruneddescaft$stratafit,
                                  betas=pruneddescfit[,"bhat"],
                                  vars=pruneddescfit[,"v(bhat)"],cilevel=cilevel,
-                                 alternative=ifelse(alternative=="less",
-                                                    "greater","less"),
+                                 alternative=ifelse(alternative=="greater",
+                                                    "less","greater"),
                                  vartype="alt")$adaptivewtRes
 
 
@@ -1815,7 +1823,7 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
               stratasurvfits=prunedByStrataFits$stratafit,
               bystratasummary=prunedMRSSmat,
               singlewtres=singlewtres,res5star=res5star,
-              prelimbystrataKM=p3,prelimbetweenstrataKM=p4,prelimforestplot=fplot,
-              bystrataKM=p3prune,betweenstrataKM=p4prune,forestplot=fplotprune))
+              prelimbystrataPlot=p3,prelimbetweenstrataPlot=p4,prelimforestplot=fplot,
+              bystrataPlot=p3prune,betweenstrataPlot=p4prune,forestplot=fplotprune))
 
 } #end of main function

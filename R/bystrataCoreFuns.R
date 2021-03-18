@@ -488,8 +488,14 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
     pvcoxSS = pnorm(TcoxSS,lower.tail=TRUE,log.p=FALSE)
   } else stop ("Alternative must be one of 'two.sided', 'greater', or 'less'.")
 
-  #calculating probability each betahat is < 0 assuming N(betahat, Vihat) dist'n
-  prlt0 = pnorm(0,coxbeta,sqrt(coxvar))
+  #calculating probability each betahat is < 0 (or > 0) assuming N(betahat, Vihat) dist'n
+  if (alternative == "greater"){
+    prlt0 = pnorm(0,coxbeta,sqrt(coxvar), lower.tail = FALSE)
+  } else {
+    prlt0 = pnorm(0,coxbeta,sqrt(coxvar), lower.tail = TRUE)
+  }
+
+  probname = ifelse(alternative=="greater","Pr(beta>0)","Pr(beta<0)")
 
   #calculating confidence intervals for estimated logHR and exponentiating
   #for estimated amalgamated hazard ratio
@@ -527,7 +533,7 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
                      coxstratT,coxstratpv,prlt0)
   colnames(coxMRSSmat) = c("bhat","v(bhat)","ci.lower","ci.upper","exp(bhat)",
                            "exp(ci.lower)","exp(ci.upper)","Zstat","pval",
-                           "Pr(beta<0)")
+                           probname)
 
   if (verbose > 2){
     print("Cox fit within each stratum summary:")
@@ -1388,6 +1394,11 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
                               printR(descRes["exp(ci lower)"],2),", ",
                               printR(descRes["exp(ci upper)"],2),")"))
 
+      # when measure is HR, descfit is TR -> want opposite sign from HR direction
+      # so if alternative == 'less' or 'two.sided', assume want Pr(beta<0) so
+      #           would want Pr(beta>0) for TR
+      # if alternative == 'greater', assume want Pr(beta>0) for HR so want
+      #           Pr(beta<0) for TR
       tabletext.trgt0 = c(printR(descfit[,ifelse(alternative=="greater",
                                                  "Pr(beta<0)","Pr(beta>0)")],3),"")
 
@@ -1434,8 +1445,13 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
                              printR(descRes["exp(ci lower)"],2),", ",
                              printR(descRes["exp(ci upper)"],2),")")))
 
-          tabletext.hrgt0 = c(printR(descfit[,ifelse(alternative=="greater",
-                                                     "Pr(beta<0)","Pr(beta>0)")],3),"")
+          # when measure is TR, descfit is HR -> want opposite sign from TR direction
+          # so if alternative == 'greater' or 'two.sided', assume want Pr(beta>0) so
+          #           would want Pr(beta<0) for HR
+          # if alternative == 'less', assume want Pr(beta<0) for TR so want
+          #           Pr(beta>0) for HR
+          tabletext.hrgt0 = c(printR(descfit[,ifelse(alternative=="less",
+                                                     "Pr(beta>0)","Pr(beta<0)")],3),"")
           tabletext.hrgt0[tabletext.hrgt0=="1.000"] = ">0.999"
           tabletext.hrgt0[tabletext.hrgt0=="0.000"] = "<0.001"
 
@@ -1546,7 +1562,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     tabletext.prltgt0[tabletext.prltgt0=="1.000"] = ">0.999"
     tabletext.prltgt0[tabletext.prltgt0=="0.000"] = "<0.001"
 
-    ltgt0name = paste0("Pr(RD",ifelse(alternative=="greater",">0)","<0)"))
+    ltgt0name = paste0("Pr(",measure,ifelse(alternative=="greater",">0)","<0)"))
 
     tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
                                    substr(treetype,2,100),
@@ -1616,8 +1632,17 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     if (is.infinite(min(lower))) clippts[1] = min(lower[!is.infinite(lower)])-0.1
     if (is.infinite(max(upper))) clippts[2] = max(upper[!is.infinite(upper)])+0.1
 
+    maxmin <- max(min(lower),clippts[1])
+    minmax <- min(max(upper),clippts[2])
+    rangefplot <- minmax - maxmin
+    stepsizefplot <- round(rangefplot/5,1)
+    #stepoptions <- c(0.1, 0.5, 1, 5, 10)
+    #stepsizefplot_clean <- stepoptions[which.min(abs(stepoptions-stepsizefplot))]
+
     xtickpts = seq(plyr::round_any(max(min(lower),clippts[1]),0.1),
-                   plyr::round_any(min(max(upper),clippts[2]),0.1),0.1)
+                   plyr::round_any(min(max(upper),clippts[2]),0.1),stepsizefplot)#,0.1)
+
+    xtickpts <- sort(c(xtickpts,0))
 
     ncol = ncol(tabletext.all)
     xlabname=measurenamelong#ifelse(family=="cox","RMST Difference","Risk Difference")
@@ -1786,8 +1811,8 @@ glmbystrata = function(yy,arm,family,treeStrata,termNodes=NULL,cilevel=0.05,
 #'     p-value, and cilevelx100\% confidence interval assuming sample size weights
 #'     \item weights: Sample size weights used to construct estimate
 #' }
-mdbystrata = function(yy,arm,treeStrata,termNodes=NULL,cilevel=0.05,
-                       verbose=0,alternative="two.sided"){
+mdbystrata = function(yy,arm,treeStrata,treetype='final',termNodes=NULL,cilevel=0.05,
+                       verbose=0,alternative="two.sided",plot=FALSE){
 
   dat = data.frame(yy,arm)
   nstrata = max(treeStrata,na.rm=TRUE)
@@ -1900,6 +1925,74 @@ mdbystrata = function(yy,arm,treeStrata,termNodes=NULL,cilevel=0.05,
     print(round(mdMRSSmat,4))
   }
 
+  if (plot == TRUE){
+
+    getPalette = grDevices::colorRampPalette(RColorBrewer::brewer.pal(min(
+      nstrata,11),"Spectral"))
+
+    wrapper <- function(x, ...)
+    {
+      paste(strwrap(x, ...), collapse = "\n")
+    }
+
+    labelStart = "S"
+    if (treetype == "preliminary") labelStart = "pS"
+    if (treetype == "prespecified") labelStart = "S_"
+
+    labelNames = paste0("S",1:nstrata)
+    if (treetype == "preliminary") labelNames = paste0("p",labelNames)
+    stratLabelName = ifelse(treetype=="preliminary","Preliminary","Final")
+    if (treetype=="prespecified"){
+      labelNames = paste0("S_",1:nstrata)
+      stratLabelName = "Prespecified"
+    }
+
+    if (!is.null(termNodes)){
+      labelNames = paste0(labelNames,": ",termNodes)
+      labelNames = sapply(labelNames,function(x) wrapper(x,width=50))
+      names(labelNames) = NULL
+    }
+
+    mdplotdat <- data.frame(yy, treeStrata, arm)
+
+    mdplotdat$treeStrata <- as.factor(mdplotdat$treeStrata)
+    mdplotdat$arm <- as.factor(mdplotdat$arm)
+    mdplotdat$Treatment <- as.character(mdplotdat$arm)
+    mdplotdat$Treatment[mdplotdat$Treatment == 0] <- 'Control'
+    mdplotdat$Treatment[mdplotdat$Treatment == 1] <- 'Test'
+
+    facetstrattitle <- list()
+    for (x in 1:length(termNodes)){
+      facetstrattitle[[x]] <- wrapper(paste0(labelStart,x," (",
+                                             round(mdwSS[[x]]*100,1),
+                                             "% of subjects)"),width=45)
+    }
+
+    strata_labeller <- function(variable,value){
+      return(facetstrattitle[value])
+    }
+
+    p3 <- ggplot2::ggplot(mdplotdat) +
+      ggplot2::geom_boxplot(aes(y = yy, x = Treatment, group = Treatment,
+                                fill = Treatment)) +
+      ggplot2::facet_grid(.~treeStrata, labeller=strata_labeller) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(axis.title.x=element_blank(),
+                     axis.text.x=element_blank(),
+                     axis.ticks.x=element_blank())
+
+    p4 <- ggplot2::ggplot(mdplotdat) +
+      ggplot2::geom_boxplot(aes(y = yy, x = treeStrata, group = treeStrata,
+                       fill = treeStrata)) +
+      ggplot2::theme_bw() +
+      ggplot2::scale_fill_manual(name=paste0(stratLabelName," Risk Strata"),
+                                  labels = labelNames,values = getPalette(nstrata)) +
+      ggplot2::theme(axis.title.x=element_blank(),
+                     axis.text.x=element_blank(),
+                     axis.ticks.x=element_blank())
+
+  } else p3 <- p4 <- NULL
+
   #KM curves ignoring treatment arm indicator
   # Stratum = as.factor(treeStrata)
   # s <- list(sapply(unique(Stratum), function(x) sum(Stratum==x)))
@@ -1910,7 +2003,7 @@ mdbystrata = function(yy,arm,treeStrata,termNodes=NULL,cilevel=0.05,
   #============================================================================#
 
   return(list(fitsummary=mdMRSSmat, table=mdMRSSres$table, stratafit=s,
-              weights=mdMRSSres$weightSS))
+              weights=mdMRSSres$weightSS, p3=p3, p4=p4))
 }
 
 
