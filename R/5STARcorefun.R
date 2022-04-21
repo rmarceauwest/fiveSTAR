@@ -1,3 +1,5 @@
+#packrat:::recursivePackageDependencies("fiveSTAR",lib.loc = .libPaths()[1])
+
 #from Hadley Wickham, http://r.789695.n4.nabble.com/Suppressing-output-e-g-from-cat-td859876.html
 quiet <- function(x) {
   sink(tempfile())
@@ -126,6 +128,12 @@ filter5STAR = function(yy,X,family="cox",plot=FALSE,verbose=0,
     #(i.e., removing individuals with any missing covariate information)
     XC.nomiss  = X[rowSums(is.na(X))==0,]
     yyC.nomiss = yy[rowSums(is.na(X))==0,]
+
+    # removing also any 0's from the dataset for time to event data
+    if (family == 'cox'){
+      XC.nomiss <- XC.nomiss[yyC.nomiss[,1] > 0,]
+      yyC.nomiss <- yyC.nomiss[yyC.nomiss[,1] > 0,]
+    }
 
     #continuous (and possibly binary; non-factor) variables
     XC.numeric = XC.nomiss[,which(lapply(XC.nomiss,is.numeric)==TRUE)]
@@ -886,7 +894,7 @@ filter_control = function(method="ENET",lambdatype="min",mixparm=NULL,
 #' @param alpha vector of significance level for variable selection for tree
 #'  splits in preliminary and final trees (3A and 3B) - if a single number is
 #'  given, the same value is used for both preliminary and final trees
-#'  (Default is (0.1,0.2))
+#'  (Default is (0.1,0.1))
 #' @param testtype from \code{\link[partykit]{ctree_control}}:
 #' "a character specifying how to compute the distribution of the test
 #' statistic" (default = "Bonferroni")
@@ -895,13 +903,13 @@ filter_control = function(method="ENET",lambdatype="min",mixparm=NULL,
 # go with the majority (TRUE) (default = FALSE)
 #' @param maxsurrogate ctree control parameter defining number of surrogate
 # splits to evaluate for missing covariates (see ctree_control)
-#' @param maxdepth Maximum tree depth (default for 5-STAR is 3)
+#' @param maxdepth Maximum tree depth (default for 5-STAR is 2)
 #' @param ... additional parameters to be passed into
 #' \code{\link[partykit]{ctree}} function
 #' @return A list of control parameters for strata formation step
 #' @export
-tree_control = function(minbucket=40,alpha=c(0.1,0.2),testtype="Bonferroni",
-                        majority=FALSE,maxsurrogate=3,maxdepth=3,...){
+tree_control = function(minbucket=40,alpha=c(0.1,0.1),testtype="Bonferroni",
+                        majority=FALSE,maxsurrogate=3,maxdepth=2,...){
   list(minbucket=minbucket,alpha=alpha,testtype=testtype,
        majority=majority,maxsurrogate=maxsurrogate,maxdepth=maxdepth,...)
 }
@@ -1182,8 +1190,6 @@ cleanNodeNames = function(nodename){
 #' between sample size ni and ni/sqrt(Vi) test statistics should be calculated
 #' under the null ("null") or estimated via the Cox PH model ("alt"). "alt"
 #' is default, and must be used when measure != "HR"
-#' @param missthrehold Optional parameter specifying proportion of missingness
-#' allowed for each covariate. See \code{\link{prep5STAR}} for more details.
 #' @param timeunit  Optional parameter for plots defining scale of time to event
 #'  data (e.g., "Months", "Years"); ignored for family!="cox" and plot == FALSE
 #' @param tau Optional numeric variable specifying end time point for rmst
@@ -1215,6 +1221,8 @@ cleanNodeNames = function(nodename){
 #' @param shading For plotting, whether to add shaded confidence intervals
 #' around the pooled KM curves to better differentiate how similar the survival
 #' curves are. Default is FALSE. Ignored when plot = FALSE and/or family != "cox"
+#' @param missthreshold
+#' @param fplottype
 #'
 #' @details Filtering step is performed on complete case basis (e.g., removing
 #' all individuals with any missing covariate data)
@@ -1483,10 +1491,10 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
       stop(paste0("Need at least one event per strata x arm",
                   " (events per preliminary strata: ",
                   paste0(sapply(1:length(unique(treeStrata)),function(x)
-                    sum(status[treeStrata==x])),collapse="-"),
+                    sum(statusVec[treeStrata==x])),collapse="-"),
                   " and per final strata: ",
                   paste0(sapply(1:length(unique(treeStrataPruned)),function(x)
-                    sum(status[treeStrataPruned==x])),collapse="-"),")"))
+                    sum(statusVec[treeStrataPruned==x])),collapse="-"),")"))
 
 
     if (family == "binomial"){
@@ -1711,34 +1719,41 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
       #-------------------------------------------------#
       descaft = maaftbystrata(time=time,status=status,arm=arm,
                               treeStrata=treeStrata,
-                              distList=distList,ucvar=ucvar,alternative=ifelse(
-                                alternative=="greater","less","greater"),
+                              distList=distList,ucvar=ucvar,
+                              alternative=ifelse(
+                                 alternative=="greater","less","greater"),
                               cilevel=ifelse(
-                                alternative=="two.sided",2*cilevel,cilevel),
+                                  alternative=="two.sided",cilevel/2,cilevel),
                               verbose=0)
 
       descfit = descaft$fitsummary
 
       descRes = minPadapHR(sf=descaft$stratafit,betas=descfit[,"bhat"],
-                           vars=descfit[,"v(bhat)"],cilevel=cilevel,
+                           vars=descfit[,"v(bhat)"],
+                           cilevel=ifelse(alternative=="two.sided",cilevel/2,
+                                          cilevel),
                            alternative=ifelse(alternative=="greater",
-                                              "less","greater"),
+                                               "less","greater"),
                            vartype="alt")$adaptivewtRes
 
       pruneddescaft = maaftbystrata(time=time,status=status,arm=arm,
                                     treeStrata=treeStrataPruned,
-                              distList=distList,ucvar=ucvar,alternative=ifelse(
-                                alternative=="greater","less","greater"),
-                              cilevel=ifelse(alternative=="two.sided",2*cilevel,
-                                             cilevel),verbose=0)
+                              distList=distList,ucvar=ucvar,
+                              alternative=ifelse(
+                                 alternative=="greater","less","greater"),
+                              cilevel=ifelse(alternative=="two.sided",cilevel/2,
+                                             cilevel),
+                              verbose=0)
 
       pruneddescfit = pruneddescaft$fitsummary
 
       pruneddescRes = minPadapHR(sf=pruneddescaft$stratafit,
                                  betas=pruneddescfit[,"bhat"],
-                                 vars=pruneddescfit[,"v(bhat)"],cilevel=cilevel,
+                                 vars=pruneddescfit[,"v(bhat)"],
+                                 cilevel=ifelse(alternative=="two.sided",cilevel/2,
+                                                cilevel),
                                  alternative=ifelse(alternative=="greater",
-                                                    "less","greater"),
+                                                     "less","greater"),
                                  vartype="alt")$adaptivewtRes
 
 
@@ -1748,16 +1763,19 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
       # descriptive fits - cox ph model by strata #
       #-------------------------------------------#
       desccox = coxbystrata(time,status,arm,treeStrata,termNodes,
-                            treetype="preliminary",alternative=ifelse(
+                            treetype="preliminary",
+                            alternative=ifelse(
                               alternative=="less","greater","less"),
                             cilevel=ifelse(
-                              alternative=="two.sided",2*cilevel,cilevel),
+                               alternative=="two.sided",cilevel/2,cilevel),
                             inclfrailty=inclfrailty,verbose=0,plot=FALSE,
                             timeunit,shading)
       descfit = desccox$fitsummary
 
       descRes = minPadapHR(sf=desccox$stratafit,betas=descfit[,"bhat"],
-                           vars=descfit[,"v(bhat)"],cilevel=cilevel,
+                           vars=descfit[,"v(bhat)"],
+                           cilevel=ifelse(alternative=="two.sided",cilevel/2,
+                                          cilevel),
                            alternative=ifelse(alternative=="less",
                                               "greater","less"),
                            vartype="alt")$adaptivewtRes
@@ -1768,7 +1786,7 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
                                   treetype="final",alternative=ifelse(
                                     alternative=="less","greater","less"),
                                   cilevel=ifelse(
-                                    alternative=="two.sided",2*cilevel,cilevel),
+                                     alternative=="two.sided",cilevel/2,cilevel),
                                   inclfrailty=inclfrailty,
                                   verbose=0,plot=FALSE,timeunit,shading)
 
@@ -1776,7 +1794,9 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
 
       pruneddescRes = minPadapHR(sf=pruneddesccox$stratafit,
                                  betas=pruneddescfit[,"bhat"],
-                                 vars=pruneddescfit[,"v(bhat)"],cilevel=cilevel,
+                                 vars=pruneddescfit[,"v(bhat)"],
+                                 cilevel=ifelse(alternative=="two.sided",cilevel/2,
+                                                cilevel),
                                  alternative=ifelse(alternative=="less",
                                                     "greater","less"),
                                  vartype="alt")$adaptivewtRes

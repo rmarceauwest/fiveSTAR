@@ -430,7 +430,7 @@ minPadapHR = function(sf,betas,vars,cilevel,alternative="less",vartype="alt"){
 coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
                        treetype="final",alternative="less",cilevel=0.025,
                        inclfrailty=FALSE,verbose=0,plot=TRUE,
-                       timeunit=NULL,shading=TRUE){
+                       timeunit=NULL,shading=TRUE,shadealpha=0.3){
 
   #collecting summary data of strata
   dat = data.frame(time,status,arm)
@@ -453,7 +453,8 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
 
   #calculating GT test for PH within each strata
   pv.GTzph = sapply(1:nstrata,function(x)
-    cox.zph(coxCtreeStrataFit[[x]], global = FALSE)[[1]][,"p"])
+    tryCatch(cox.zph(coxCtreeStrataFit[[x]], global = FALSE)[[1]][,"p"],
+             error=function(e) NA))
 
   if (verbose >= 3){
     print("Cox model fits within each stratum:")
@@ -582,6 +583,10 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
         brtimes = c(0.25,0.5,1,1.5,2)
         brtimeby = brtimes[which.min(abs(5.5-max(round(time))/brtimes))]
         breaktimes = seq(0,max(time),brtimeby)
+      } else if (timeunit == "Days"){
+        brtimes =  c(10,20,30,60,90,180,365,540,730)
+        brtimeby = brtimes[which.min(abs(5.5-max(round(time))/brtimes))]
+        breaktimes = seq(0,max(time),brtimeby)
       }
     }
 
@@ -638,6 +643,7 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
 
     #s=controlStrataFit
     sdata<-data.frame(time=s$time, surv=s$surv, lower=s$lower, upper=s$upper)
+
     #only one strata
     if (is.null(s$strata)){
       sdata$strata = rep(1,nrow(sdata))
@@ -647,12 +653,23 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
       sdata$strata = as.numeric(gsub(".*=","",sdata$strata))
     }
 
+    s_table <- summary(s)$table
+    if (is.null(dim(s_table))) s_table <- t(as.matrix(summary(s)$table,nrow=1))
+    sevents <- s_table[,'events']
+    #sevents <- summary(s)$table[,'events']
+    pctevents <- sevents/sum(sevents)
+    sdata$events <- pctevents[sdata$strata]
+    sdata$ev5 <- (sdata$events >= 0.05)*1
+    sdata$ev10 <- (sdata$events >= 0.10)*1
+    sdata$ev10 <- factor(sdata$ev10,levels=c(0,1))
+
     labelNames = paste0("S",1:nstrata)
     if (treetype == "preliminary") labelNames = paste0("p",labelNames)
-    stratLabelName = ifelse(treetype=="preliminary","Preliminary","Final")
+    stratLabelName = ifelse(treetype=="preliminary","Preliminary Risk",
+                            "Identified Risk")
     if (treetype=="prespecified"){
       labelNames = paste0("S_",1:nstrata)
-      stratLabelName = "Prespecified"
+      stratLabelName = "Design"
     }
 
     if (!is.null(termNodes)){
@@ -666,44 +683,52 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
       spectraledges = RColorBrewer::brewer.pal(5,"Spectral")[
         sort(c(1,5,4)[1:nstrata])]
       p4 = ggplot2::ggplot() +
-        ggplot2::geom_step(data=sdata, ggplot2::aes(x=time, y=surv,
-                                                    col=factor(sdata$strata)),
+        ggplot2::geom_step(data=sdata,
+                           ggplot2::aes(x=time, y=surv, col=factor(strata)),
+                                        #alpha=ev10),
                            lwd=1.2) + ggplot2::theme_bw() +
         ggplot2::scale_x_continuous(breaks=breaktimes) +
         ggplot2::xlab(paste0("Time",timelabel)) + ggplot2::ylab("Survival") +
-        ggplot2::scale_color_manual(name=paste0(stratLabelName," Risk Strata"),
-                                    labels=labelNames,values=spectraledges)
+        ggplot2::scale_color_manual(name=paste0(stratLabelName," Strata"),
+                                    labels=labelNames,values=spectraledges) #+
+        # ggplot2::scale_alpha_manual(name='Percent Events',values=c(0.2,1.0),
+        #                             labels=c('< 10 %','>= 10 %'),drop=FALSE)
       if (shading==TRUE){
         p4 = p4 +
           ggplot2::geom_ribbon(data=sdata,ggplot2::aes(
-            x=time,ymin=lower,ymax=upper,fill=factor(sdata$strata)),alpha=0.3) +
-          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Risk Strata"),
+            x=time,ymin=lower,ymax=upper,fill=factor(strata)),alpha=shadealpha) +
+          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Strata"),
                                      labels=labelNames,values=spectraledges)
       }
 
     }else {
 
       getPalette = grDevices::colorRampPalette(RColorBrewer::brewer.pal(min(
-        nstrata,11),"Spectral"))
+        4,11),"Spectral"))
+      #nstrata,11),"Spectral"))
 
       p4 = ggplot2::ggplot() +
-        ggplot2::geom_step(data=sdata, ggplot2::aes(x=time, y=surv,
-                                                    col=factor(sdata$strata)),
-                           lwd=1.2) + ggplot2::theme_bw() +
+        ggplot2::geom_step(data=sdata,
+                           ggplot2::aes(x=time, y=surv,col=factor(strata)),
+                                        #alpha=ev10),
+                                        lwd=1.2) +
+        ggplot2::theme_bw() +
         ggplot2::scale_x_continuous(breaks=breaktimes) +
         ggplot2::xlab(paste0("Time",timelabel)) + ggplot2::ylab("Survival") +
-        ggplot2::scale_color_manual(name=paste0(stratLabelName," Risk Strata"),
-                                    labels=labelNames,values=getPalette(nstrata))
+        ggplot2::scale_color_manual(name=paste0(stratLabelName," Strata"),
+                                    labels=labelNames,values=getPalette(nstrata)) #+
+        # ggplot2::scale_alpha_manual(name='Percent Events',values=c(0.2,1.0),
+        #                             labels=c('< 10 %','>= 10 %'),drop=FALSE)
       if (shading==TRUE){
         p4 = p4 +
           ggplot2::geom_ribbon(data=sdata,ggplot2::aes(
-            x=time,ymin=lower,ymax=upper,fill=factor(sdata$strata)),alpha=0.3) +
-          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Risk Strata"),
+            x=time,ymin=lower,ymax=upper,fill=factor(strata)),alpha=shadealpha) +
+          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Strata"),
                                      labels=labelNames,values=getPalette(nstrata))
+
       }
 
     }
-
   } else p3 = p4 = NULL
 
   #============================================================================#
@@ -939,7 +964,7 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
                          distList=c("loglogistic","lognormal","weibull"),
                          ucvar=1,alternative="greater",cilevel=0.025,verbose=0,
                          plot=FALSE,treetype="final",timeunit=NULL,
-                         shading=TRUE){
+                         shading=TRUE,shadealpha=0.3){
 
   #key aspects of input data
   dat = data.frame(time,status,arm)
@@ -964,7 +989,7 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
       } else if (dist=="weibull"){
         srvfits[[stratum]][[dist]] = survreg(
           Surv(time,status) ~ arm,subset=treeStrata==stratum,dist=dist,
-          init=coef(llogfit))
+          init=coef(llogfit),control=survreg.control(maxiter=100))
 
       } else {
         srvfits[[stratum]][[dist]] = survreg(
@@ -1004,6 +1029,7 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
     }
 
     #need to calculate compared to min AIC so it is computable
+    AICs[vars==0] <- Inf # if still not converging within a stratum
     deltaAICs = AICs - min(AICs)
     weights = exp(-0.5*deltaAICs)/sum(exp(-0.5*deltaAICs))
     weightList[[stratum]] = weights
@@ -1088,6 +1114,10 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
         brtimes = c(0.25,0.5,1,1.5,2)
         brtimeby = brtimes[which.min(abs(5.5-max(round(time))/brtimes))]
         breaktimes = seq(0,max(time),brtimeby)
+      } else if (timeunit == "Days"){
+        brtimes =  c(10,20,30,60,90,180,365,540,730)
+        brtimeby = brtimes[which.min(abs(5.5-max(round(time))/brtimes))]
+        breaktimes = seq(0,max(time),brtimeby)
       }
     }
 
@@ -1153,12 +1183,23 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
       sdata$strata = as.numeric(gsub(".*=","",sdata$strata))
     }
 
+    s_table <- summary(s)$table
+    if (is.null(dim(s_table))) s_table <- t(as.matrix(summary(s)$table,nrow=1))
+    sevents <- s_table[,'events']
+    #sevents <- summary(s)$table[,'events']
+    pctevents <- sevents/sum(sevents)
+    sdata$events <- pctevents[sdata$strata]
+    sdata$ev5 <- (sdata$events >= 0.05)*1
+    sdata$ev10 <- (sdata$events >= 0.10)*1
+    sdata$ev10 <- factor(sdata$ev10,levels=c(0,1))
+
     labelNames = paste0("S",1:nstrata)
     if (treetype == "preliminary") labelNames = paste0("p",labelNames)
-    stratLabelName = ifelse(treetype=="preliminary","Preliminary","Final")
+    stratLabelName = ifelse(treetype=="preliminary","Preliminary Risk",
+                            "Identified Risk")
     if (treetype=="prespecified"){
       labelNames = paste0("S_",1:nstrata)
-      stratLabelName = "Prespecified"
+      stratLabelName = "Design"
     }
 
     if (!is.null(termNodes)){
@@ -1172,18 +1213,22 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
       spectraledges = RColorBrewer::brewer.pal(5,"Spectral")[
         sort(c(1,5,4)[1:nstrata])]
       p4 = ggplot2::ggplot() +
-        ggplot2::geom_step(data=sdata, ggplot2::aes(x=time, y=surv,
-                                                    col=factor(sdata$strata)),
-                           lwd=1.2) + ggplot2::theme_bw() +
+        ggplot2::geom_step(data=sdata,
+                           ggplot2::aes(x=time, y=surv, col=factor(strata)),
+                                        #alpha=ev10),
+                                        lwd=1.2) +
+        ggplot2::theme_bw() +
         ggplot2::scale_x_continuous(breaks=breaktimes) +
         ggplot2::xlab(paste0("Time",timelabel)) + ggplot2::ylab("Survival") +
-        ggplot2::scale_color_manual(name=paste0(stratLabelName," Risk Strata"),
-                                    labels=labelNames,values=spectraledges)
+        ggplot2::scale_color_manual(name=paste0(stratLabelName," Strata"),
+                                    labels=labelNames,values=spectraledges) #+
+        # ggplot2::scale_alpha_manual(name='Percent Events',values=c(0.2,1.0),
+        #                             labels=c('< 10 %','>= 10 %'))
       if (shading==TRUE){
         p4 = p4 +
           ggplot2::geom_ribbon(data=sdata,ggplot2::aes(
-            x=time,ymin=lower,ymax=upper,fill=factor(sdata$strata)),alpha=0.3) +
-          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Risk Strata"),
+            x=time,ymin=lower,ymax=upper,fill=factor(strata)),alpha=shadealpha) +
+          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Strata"),
                                      labels=labelNames,values=spectraledges)
       }
 
@@ -1193,18 +1238,22 @@ maaftbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
         nstrata,11),"Spectral"))
 
       p4 = ggplot2::ggplot() +
-        ggplot2::geom_step(data=sdata, ggplot2::aes(x=time, y=surv,
-                                                    col=factor(sdata$strata)),
-                           lwd=1.2) + ggplot2::theme_bw() +
+        ggplot2::geom_step(data=sdata,
+                           ggplot2::aes(x=time, y=surv,col=factor(strata)),
+                                        #alpha=ev10),
+                                        lwd=1.2) +
+        ggplot2::theme_bw() +
         ggplot2::scale_x_continuous(breaks=breaktimes) +
         ggplot2::xlab(paste0("Time",timelabel)) + ggplot2::ylab("Survival") +
-        ggplot2::scale_color_manual(name=paste0(stratLabelName," Risk Strata"),
-                                    labels=labelNames,values=getPalette(nstrata))
+        ggplot2::scale_color_manual(name=paste0(stratLabelName," Strata"),
+                                    labels=labelNames,values=getPalette(nstrata)) #+
+        # ggplot2::scale_alpha_manual(name='Percent Events',values=c(0.2,1.0),
+        #                             labels=c('< 10 %','>= 10 %'),drop=FALSE)
       if (shading==TRUE){
         p4 = p4 +
           ggplot2::geom_ribbon(data=sdata,ggplot2::aes(
-            x=time,ymin=lower,ymax=upper,fill=factor(sdata$strata)),alpha=0.3) +
-          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Risk Strata"),
+            x=time,ymin=lower,ymax=upper,fill=factor(strata)),alpha=shadealpha) +
+          ggplot2::scale_fill_manual(name=paste0(stratLabelName," Strata"),
                                      labels=labelNames,values=getPalette(nstrata))
       }
 
@@ -1242,6 +1291,11 @@ printR = function(x,digits){
   return( formatC(round(x,digits), format='f',digits=digits) )
 }
 
+printE <- function(x,digits){
+  formatC(round(x,digits), digits = digits+1, format = "g",
+          drop0trailing = FALSE)
+}
+
 roundLabelNums = function(name,digits){
   name = strsplit(name," ")[[1]]
   #matching all numbers of the sort digit[punctuation]digit, except digit-digit
@@ -1260,10 +1314,21 @@ roundLabelNums = function(name,digits){
     name[numparpos] = sapply(1:length(puncttypeR),function(x)
       sub(puncttypeR[x],"",name[numparpos[x]]))
   }
-  name[numpos] = printR(as.numeric(name[numpos]),digits)
+
+  if (length(grep(",",name[numpos]))>0){
+    namenums <- strsplit(name[numpos],",")[[1]]
+    roundnum <- vector(mode = "list", length = length(namenums))
+    for (j in 1:length(namenums)){
+      roundnum[j] <- round(as.numeric(namenums[j]),digits)
+    }
+    name[numpos] <- paste0(unlist(roundnum),collapse=",")
+  } else{
+    name[numpos] = round(as.numeric(name[numpos]),digits)
+  }
   name[numparpos] = paste0(puncttypeL,name[numparpos],puncttypeR)
   name[numparpos] = gsub("\\\\","",name[numparpos])
   name = paste(name,collapse=" ")
+
   return(name)
 }
 
@@ -1319,6 +1384,8 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
                               ticks=grid::gpar(cex=0.9),
                               label=grid::gpar(lineheight=0.75)),wrapwidth=70,...){
 
+  avgname <- ifelse(treetype=='prespecified','2-STAR Average','5-STAR Average')
+
   #extracting summary of strata-level fits, as matrix/data frame
   if (family == "cox"){
     stratafittable = summary(stratafits)$table
@@ -1343,7 +1410,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
   tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
                                  substr(treetype,2,100),
-                                 " Strata"),labelNames,"5-STAR Average"),
+                                 " Strata"),labelNames,avgname),
                         c("No. Subjects (%)",tabletext,
                           paste0(sum(stratafits$n)," (100)")))
 
@@ -1352,8 +1419,8 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
   #============================================================================#
 
   #(e.g., where log variable is of interest)
-  if ((family == "cox" & measure == "HR")|(family=="binomial" & measure=="OR")|
-      (family=="cox" & measure=="TR")){
+  if ((family == "cox" & measure %in% c("HR","TR"))|
+      (family=="binomial" & measure=="OR")){
 
     nevents = stratafittable[,"events"]
     tabletext.events = paste0(nevents," (",
@@ -1376,8 +1443,9 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     tabletext.prlt0[tabletext.prlt0=="0.000"] = "<0.001"
                         #printR(MRSSres["Pr(beta<0)"]*100,1))
 
-    weightName = ifelse(treetype=="prespecified","Inv.Var Weight %",
-                        "Adap. Wt %")
+    # weightName = ifelse(treetype=="prespecified","Inv.Var Weight %",
+    #                     "Adap. Wt %")
+    weightName <- "Adap. Wt %"
 
     #---------------------------------------------------#
 
@@ -1407,7 +1475,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
       tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
                                          substr(treetype,2,100),
-                                         " Strata")),labelNames,"5-STAR Average"),
+                                         " Strata")),labelNames,avgname),
                            c(list("No. Subjects (%)"),tabletext,
                              paste0(sum(stratafits$n)," (100)")),
                            c(list("No. Events (%)"),tabletext.events,
@@ -1424,7 +1492,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
         tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
                                            substr(treetype,2,100),
-                                           " Strata")),labelNames,"5-STAR Average"),
+                                           " Strata")),labelNames,avgname),
                              c(list("No. Subjects (%)"),tabletext,
                                paste0(sum(stratafits$n)," (100)")),
                              c(list("No. Events (%)"),tabletext.events,
@@ -1457,7 +1525,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
           tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
                                              substr(treetype,2,100),
-                                             " Strata")),labelNames,"5-STAR Average"),
+                                             " Strata")),labelNames,avgname),
                                c(list("No. Subjects (%)"),tabletext,
                                  paste0(sum(stratafits$n)," (100)")),
                                c(list("No. Events (%)"),tabletext.events,
@@ -1474,7 +1542,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
       } else {
       tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
                                          substr(treetype,2,100),
-                                         " Strata")),labelNames,"5-STAR Average"),
+                                         " Strata")),labelNames,avgname),
                            c(list("No. Subjects (%)"),tabletext,
                              paste0(sum(stratafits$n)," (100)")),
                            c(list("No. Events (%)"),tabletext.events,
@@ -1509,10 +1577,20 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
     clippts = c(-Inf,Inf)
     if (is.infinite(min(lower))) clippts[1] = min(lower[!is.infinite(lower)])-0.1
-    if (is.infinite(max(upper))) clippts[2] = max(upper[!is.infinite(upper)])+0.1
+    if (is.infinite(max(upper))|(max(upper)>1e4)){
+      #clippts[2] = max(upper[!is.infinite(upper)])+0.1
+      clippts[2] = max(upper[upper < 1e4])+0.1
+    }
+    clippts[2] = min(clippts[2],1.5*max(MRSSmat[,"exp.bhat."]))
 
-    xtickpts = seq(plyr::round_any(max(min(lower),clippts[1]),0.2),#,floor),
-                   plyr::round_any(min(max(upper),clippts[2]),0.2),0.2)#,ceiling),0.2)
+    tickbylist <- c(0.1,0.2,0.5,1)
+    clipdiff <- (min(max(upper),clippts[2]) - max(min(lower),clippts[1]))/10
+    tickby <- tickbylist[which.min(abs(tickbylist - clipdiff))]
+    # xtickpts = seq(plyr::round_any(max(min(lower),clippts[1]),0.2),#,floor),
+    #                plyr::round_any(min(max(upper),clippts[2]),0.2),0.2)#,ceiling),0.2)
+    xtickpts = seq(plyr::round_any(max(min(lower),clippts[1]),tickby),#,floor),
+                   plyr::round_any(min(max(upper),clippts[2]),tickby),tickby)#,ceiling),0.2)
+
 
     nc = length(tabletext.all)-1
     xlabname=ifelse(family=="cox","Hazard Ratio (Test / Control)","Odds Ratio")
@@ -1547,10 +1625,9 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     if (measure == "MD") measurename = "Mean Diff."
     measurenamelong = paste0(gsub("\\.","",measurename),"erence (Test - Control)")
 
-    tabletext.ci = c(paste0(printR(MRSSmat[,1],2)," (",
+    tabletext.ci = c(paste0(printR(MRSSmat$bhat,2)," (",
                             printR(MRSSmat$ci.lower,2),
-                            ", ",printR(MRSSmat$ci.upper,2),
-                            ")"),
+                            ", ",printR(MRSSmat$ci.upper,2),")"),
                      paste0(printR(MRSSres[1],2),
                             " (",printR(MRSSres["ci lower"],2),
                             ", ",printR(MRSSres["ci upper"],2),")") )
@@ -1566,7 +1643,7 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
     tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
                                    substr(treetype,2,100),
-                                   " Strata"),labelNames,"5-STAR Average"),
+                                   " Strata"),labelNames,avgname),
                           c("No. Subjects (%)",tabletext,
                             paste0(sum(nn)," (100)")),
                           #c(weightName,printR(tabletext.weights*100,1),100),
@@ -1630,12 +1707,16 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
     clippts = c(-Inf,Inf)
     if (is.infinite(min(lower))) clippts[1] = min(lower[!is.infinite(lower)])-0.1
-    if (is.infinite(max(upper))) clippts[2] = max(upper[!is.infinite(upper)])+0.1
+    if (is.infinite(max(upper))|(max(upper)>1e4)){
+      #clippts[2] = max(upper[!is.infinite(upper)])+0.1
+      clippts[2] = max(upper[upper < 1e4])+0.1
+    }
 
     maxmin <- max(min(lower),clippts[1])
     minmax <- min(max(upper),clippts[2])
     rangefplot <- minmax - maxmin
     stepsizefplot <- round(rangefplot/5,1)
+    if (stepsizefplot == 0) stepsizefplot <- round(rangefplot/5,2)
     #stepoptions <- c(0.1, 0.5, 1, 5, 10)
     #stepsizefplot_clean <- stepoptions[which.min(abs(stepoptions-stepsizefplot))]
 
@@ -1941,10 +2022,11 @@ mdbystrata = function(yy,arm,treeStrata,treetype='final',termNodes=NULL,cilevel=
 
     labelNames = paste0("S",1:nstrata)
     if (treetype == "preliminary") labelNames = paste0("p",labelNames)
-    stratLabelName = ifelse(treetype=="preliminary","Preliminary","Final")
+    stratLabelName = ifelse(treetype=="preliminary","Preliminary Risk",
+                            "Identified Risk")
     if (treetype=="prespecified"){
       labelNames = paste0("S_",1:nstrata)
-      stratLabelName = "Prespecified"
+      stratLabelName = "Design" #"Prespecified"
     }
 
     if (!is.null(termNodes)){
@@ -1985,7 +2067,7 @@ mdbystrata = function(yy,arm,treeStrata,treetype='final',termNodes=NULL,cilevel=
       ggplot2::geom_boxplot(aes(y = yy, x = treeStrata, group = treeStrata,
                        fill = treeStrata)) +
       ggplot2::theme_bw() +
-      ggplot2::scale_fill_manual(name=paste0(stratLabelName," Risk Strata"),
+      ggplot2::scale_fill_manual(name=paste0(stratLabelName," Strata"),#" Risk Strata"),
                                   labels = labelNames,values = getPalette(nstrata)) +
       ggplot2::theme(axis.title.x=element_blank(),
                      axis.text.x=element_blank(),
