@@ -17,7 +17,6 @@ Imports:
     AICcmodavg,
     c060,
     coin,
-    forestplot,
     ggplot2 (>= 3.1.0),
     glmnet (>= 2.0),
     grid,
@@ -25,13 +24,14 @@ Imports:
     pamr,
     partykit (>= 1.2),
     randomForestSRC (>= 2.7),
-    RColorBrewer,
     stringr,
     survival (>= 2.41),
     survminer (>= 0.4.3),
     survRM2
 Suggests:
     testthat,
+    forestplot,
+    RColorBrewer,
     knitr,
     rmarkdown
 RoxygenNote: 6.1.1

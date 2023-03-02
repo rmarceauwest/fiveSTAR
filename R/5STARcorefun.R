@@ -890,7 +890,7 @@ filter_control = function(method="ENET",lambdatype="min",mixparm=NULL,
 #' @param minbucket Vector of minimum set of weights per terminal node for
 #' initial and pruning steps (e.g., minimum number of patients/terminal node for
 #' steps 3A and 3B) - if a single number is given, the same value is
-#' used for both preliminary and final trees (Default = 40 for both steps)
+#' used for both preliminary and final trees (Default = max(50,0.05*nsubj) for both steps)
 #' @param alpha vector of significance level for variable selection for tree
 #'  splits in preliminary and final trees (3A and 3B) - if a single number is
 #'  given, the same value is used for both preliminary and final trees
@@ -908,7 +908,7 @@ filter_control = function(method="ENET",lambdatype="min",mixparm=NULL,
 #' \code{\link[partykit]{ctree}} function
 #' @return A list of control parameters for strata formation step
 #' @export
-tree_control = function(minbucket=40,alpha=c(0.1,0.1),testtype="Bonferroni",
+tree_control = function(minbucket=NULL,alpha=c(0.1,0.1),testtype="Bonferroni",
                         majority=FALSE,maxsurrogate=3,maxdepth=2,...){
   list(minbucket=minbucket,alpha=alpha,testtype=testtype,
        majority=majority,maxsurrogate=maxsurrogate,maxdepth=maxdepth,...)
@@ -1317,11 +1317,16 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
                     vartype="alt",missthreshold=c(0.1,0.2),timeunit=NULL,
                     tau=NULL,inclfrailty=FALSE,verbose=0,plot=TRUE,
                     filter.hyper=filter_control(),
-                    tree.hyper = if (family == "gaussian"){
-                      tree_control(minbucket=30)
-                    } else tree_control(),
+                    tree.hyper = tree_control(),
                     distList=c("weibull","lognormal","loglogistic"),
-                    ucvar=1,shading=FALSE,fplottype="overall"){
+                    ucvar=1,shading=FALSE,fplottype="overall",
+                    vars2keep=NULL){
+
+  # if minbucket is not set through tree_control(), setting it to the default
+  # value here to allow the default to be data-dependent
+  if (is.null(tree.hyper$minbucket)){
+    tree.hyper$minbucket <- max(ceiling(0.05*nrow(X)),50)
+  }
 
   #setting measure if it is missing
   #(currently ignored as a default is set)
@@ -1410,7 +1415,7 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
   #---------------------------#
 
   filterRes = filter5STAR(yy=yy,X=X,family=family,plot=plot,
-                          verbose=verbose,filter.hyper=filter.hyper)
+                          verbose=verbose,filter.hyper=filter.hyper,vars2keep=NULL)
 
   cov2keep.all = filterRes$cov2keep
   X = X[,colnames(X) %in% cov2keep.all]

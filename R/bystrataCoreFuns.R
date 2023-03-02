@@ -620,7 +620,7 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
                              "% of subjects)"),width=45),
         ggtheme = survminer::theme_survminer(font.main = 14,font.legend=11),
         surv.median.line="hv",break.time.by=brtimeby,risk.table=TRUE,
-        risk.table.height=0.2,xlim=c(0,max(time[status==1]))),
+        risk.table.height=0.2,xlim=c(0,max(time[status==1])+brtimeby/5)),
         #not printing warning about not reaching median survival time...
         #idea from Duncan Murdoch
         #https://r.789695.n4.nabble.com/Suppress-specific-warnings-td4664591.html
@@ -1382,7 +1382,8 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
                             txtgp=forestplot::fpTxtGp(
                               cex=0.9,xlab=grid::gpar(cex=0.9),
                               ticks=grid::gpar(cex=0.9),
-                              label=grid::gpar(lineheight=0.75)),wrapwidth=70,...){
+                              label=grid::gpar(lineheight=0.75)),wrapwidth=70,
+                            simplifyfplot=FALSE,...){
 
   avgname <- ifelse(treetype=='prespecified','2-STAR Average','5-STAR Average')
 
@@ -1473,19 +1474,31 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
       tabletext.trgt0[tabletext.trgt0=="1.000"] = ">0.999"
       tabletext.trgt0[tabletext.trgt0=="0.000"] = "<0.001"
 
-      tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
-                                         substr(treetype,2,100),
-                                         " Strata")),labelNames,avgname),
-                           c(list("No. Subjects (%)"),tabletext,
-                             paste0(sum(stratafits$n)," (100)")),
-                           c(list("No. Events (%)"),tabletext.events,
-                             paste0(sum(stratafits$n.event)," (100)")),
-                           c(list(paste0("Est. HR (",(1-confintlevel)*100,
-                                         "% CI)")),tabletext.ci),
-                           c(list(paste0("Pr(HR",gtlt1)),tabletext.prlt0),
-                           c(list(paste0("Est. TR (",(1-confintlevel)*100,
-                                         "% CI)")),tabletext.tr),
-                           c(list(paste0("Pr(TR",ltgt1)),tabletext.trgt0))
+      if (simplifyfplot){
+        tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+                                           substr(treetype,2,100),
+                                           " Strata")),labelNames,avgname),
+                             c(list("No. Subjects (%)"),tabletext,
+                               paste0(sum(stratafits$n)," (100)")),
+                             c(list("No. Events (%)"),tabletext.events,
+                               paste0(sum(stratafits$n.event)," (100)")),
+                             c(list(paste0("Est. HR (",(1-confintlevel)*100,
+                                           "% CI)")),tabletext.ci))
+      } else {
+        tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+                                           substr(treetype,2,100),
+                                           " Strata")),labelNames,avgname),
+                             c(list("No. Subjects (%)"),tabletext,
+                               paste0(sum(stratafits$n)," (100)")),
+                             c(list("No. Events (%)"),tabletext.events,
+                               paste0(sum(stratafits$n.event)," (100)")),
+                             c(list(paste0("Est. HR (",(1-confintlevel)*100,
+                                           "% CI)")),tabletext.ci),
+                             c(list(paste0("Pr(HR",gtlt1)),tabletext.prlt0),
+                             c(list(paste0("Est. TR (",(1-confintlevel)*100,
+                                           "% CI)")),tabletext.tr),
+                             c(list(paste0("Pr(TR",ltgt1)),tabletext.trgt0))
+      }
 
     } else {
       if (measure == "TR"){
@@ -2055,7 +2068,7 @@ mdbystrata = function(yy,arm,treeStrata,treetype='final',termNodes=NULL,cilevel=
     }
 
     p3 <- ggplot2::ggplot(mdplotdat) +
-      ggplot2::geom_boxplot(aes(y = yy, x = Treatment, group = Treatment,
+      ggplot2::geom_boxplot(ggplot2::aes(y = yy, x = Treatment, group = Treatment,
                                 fill = Treatment)) +
       ggplot2::facet_grid(.~treeStrata, labeller=strata_labeller) +
       ggplot2::theme_bw() +
