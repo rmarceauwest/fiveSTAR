@@ -620,7 +620,7 @@ coxbystrata = function(time,status,arm,treeStrata,termNodes=NULL,
                              "% of subjects)"),width=45),
         ggtheme = survminer::theme_survminer(font.main = 14,font.legend=11),
         surv.median.line="hv",break.time.by=brtimeby,risk.table=TRUE,
-        risk.table.height=0.2,xlim=c(0,max(time[status==1])+brtimeby/5)),
+        risk.table.height=0.2),#xlim=c(0,max(time[status==1])+brtimeby/5)),
         #not printing warning about not reaching median survival time...
         #idea from Duncan Murdoch
         #https://r.789695.n4.nabble.com/Suppress-specific-warnings-td4664591.html
@@ -2155,6 +2155,14 @@ ratediffbystrata = function(yy,arm,treeStrata,treetype="final",
     #number of subjects in each arm
     n0 = nrow(datx0)
     n1 = nrow(datx1)
+
+    # continuity correction when no events/strata
+    if (c0 == 0 & c1 == 0){
+      c0 <- c0 + 0.5
+      c1 <- c1 + 0.5
+      n0 <- n0 + 0.5
+      n1 <- n1 + 0.5
+    }
 
     #proportion of cases in each arm
     p0 = c0/n0

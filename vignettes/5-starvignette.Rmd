@@ -32,8 +32,7 @@ The 5-STAR algorithm consists of 5 key steps:
 
 Full details of the algorithm can be found in the manuscript: 
 
-Mehrotra, D.V., Marceau West, R. Survival Analysis Using a 5-Step Stratified Testing and Amalgamation Routine (5-STAR)
-in Randomized Clinical Trials. *Submitted*. 2020. 
+Mehrotra D.V., Marceau West R. 2020. Survival Analysis Using a 5-Step Stratified Testing and Amalgamation Routine (5-STAR) in Randomized Clinical Trials. Statistics in Medicine  39(30):4724-4744.
 
 ## Quick Start
 
@@ -115,7 +114,7 @@ In order to improve estimation via transparent patient risk segregation, we appl
 
 ```{r fivestar, results='hide', fig.show='hide'}
 library(survival)
-cc = run5STAR(yy=Surv(time,status), arm=arm, X=X, measure = "TR")
+cc = run5STAR(yy=Surv(time,status), arm=arm, X=X, measure="HR")
 ```
 
 run5STAR() is the main worker function calling all other subfunctions. 
@@ -203,23 +202,22 @@ forms preliminary strata, which are ordered by risk level using area under the K
 all preliminary risk strata). These ordered strata are used as an ordered factor as
 input into the CTree algorithm again to ensure no over-stratification is performed.
 
-Many options are available for control over the strata building step via the tree.hyper option, controlled by the tree_control() function. This mainly consists of options passed through to ctree_control() from the partykit package. Defaults include minimum number of subjects/terminal node (minbucket) of 40, maximum tree depth of 3 (assuming no more than 8 strata), and multiplicity-adjusted 
-significance levels for split tests of 0.1 for preliminary trees and 0.2 for final trees (alpha). 
+Many options are available for control over the strata building step via the tree.hyper option, controlled by the tree_control() function. This mainly consists of options passed through to ctree_control() from the partykit package. Defaults include minimum number of subjects/terminal node (minbucket) of max(50,5% of number of subjects), maximum tree depth of 2 (assuming no more than 4 strata), and multiplicity-adjusted significance levels for split tests of 0.1 for preliminary trees final trees (alpha). 
 
-For our example data, 6 preliminary strata are formed via the CTree algorithm:
+For our example data, 4 preliminary strata are formed via the CTree algorithm:
 
 ```{r prelimtrees5STAR, fig.width = 7, fig.height = 4}
 cc$prelimstratadefn
 plot(cc$prelimtree)
-plot(cc$prelimbetweenstrataKM)
+plot(cc$prelimbetweenstrataPlot)
 ```
 
-and 4 final strata:
+and 3 final strata:
 
 ```{r trees5STAR, fig.width = 7, fig.height = 4}
 cc$stratadefn
 plot(cc$finaltree)
-plot(cc$betweenstrataKM)
+plot(cc$betweenstrataPlot)
 ```
 
 Subject-level formed strata ids can be obtained if needed for further analysis
@@ -237,7 +235,7 @@ Stratum-level summaries are provided for preliminary and final strata. Below we 
 
 ```{r step4, fig.width=16, fig.height=6}
 cc$bystratasummary
-print(cc$bystrataKM)
+print(cc$bystrataPlot)
 ```
 
 In the table above, beta gives the estimand of interest on the log scale (e.g., 

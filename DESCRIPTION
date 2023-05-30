@@ -5,7 +5,7 @@ Version: 0.1.0
 Authors@R: c(person("Rachel","Marceau West",email="rachel.marceau.west@merck.com",
     role=c("aut","cre")),
     person("Devan","Mehrotra",email="devan.mehrotra@merck.com",role="aut"))
-Maintainer: Rachel Marceau West <rachel.marceauwest@gmail.com>
+Maintainer: Rachel Marceau West <rachel.marceau.west@merck.com>
 Description: Implements the 5-STAR algorithm, forming homogenous risk strata
     and performing an amalgamation of within-strata treatment effect to get an
     improved estimate of overall treatment effect.

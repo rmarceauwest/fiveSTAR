@@ -95,6 +95,13 @@ filter5STAR = function(yy,X,family="cox",plot=FALSE,verbose=0,
 
   X = droplevels(X)
 
+  if (!is.null(vars2keep)){
+    if (length(setdiff(colnames(X),vars2keep))==0){
+      method <- 'fixed'
+      cov2keep.all <- vars2keep
+    }
+  }
+
   #setting seed
   set.seed(filter.hyper$filterseed)
 
@@ -378,7 +385,7 @@ filter5STAR = function(yy,X,family="cox",plot=FALSE,verbose=0,
       srv.smp.o,alpha=vimpalpha)$var.sel.Z
     cov2keep.all = rownames(srv.varselect.o)[which(srv.varselect.o$signif)]
 
-  } else{
+  } else if (method != 'fixed'){
     warning("Invalid filter type. Please select one of 'ENET','RF', or
                  'RFbest'. Returning all covariates.")
     cov2keep.all = colnames(X)
@@ -397,6 +404,8 @@ filter5STAR = function(yy,X,family="cox",plot=FALSE,verbose=0,
   } else if (method == "RF"|method=="RFbest"){
     return(list(cov2keep=cov2keep.all,varselectmat=srv.varselect.o,
                   VIMPplot=pvimp,varselect2plot=srv.smp.o,forest=srv.o))
+  } else if (method == 'fixed'){
+    return(list(cov2keep=cov2keep.all))
   }
 }
 
@@ -644,7 +653,10 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
         ##(but this seems to be the same as is used by survRM2)
         tau = min(sapply(unique(pS),function(x){
           max(datdf2$yy[,1][pS==x]) }))
-        rmeans = summary(sf,rmean=tau)$table[,"*rmean"]
+        #rmeans = summary(sf,rmean=tau)$table[,"*rmean"]
+        # adding flexibility for different terminology under different versions of survival package
+        sfsummarytab <- summary(sf,rmean=tau)$table
+        rmeans <- sfsummarytab[,grepl("rmean\\*?$",colnames(sfsummarytab))]
 
         #ordering risk order by RMST, saving for input into step 3B
         rmeanriskorder = order(rmeans)
@@ -735,6 +747,7 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
       } else { # case where only one strata after pruning
 
         prunedTermNodes = prunedTermNodesFinal = "datdf"
+        prunedpS <- rep(1,nsubj)
 
       }
 
@@ -782,8 +795,14 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
     if (length(unique(treeStrata))>1){
       tau.pre = min(sapply(unique(treeStrata),function(x){
         max(yy[,1][treeStrata==x]) }))
-      rmeans = summary(sf,rmean=tau.pre)$table[,"*rmean"]
-    } else rmeans = summary(sf,rmean="common")$table["*rmean"]
+      #rmeans = summary(sf,rmean=tau.pre)$table[,"*rmean"]
+      sfsummarytab <- summary(sf,rmean=tau.pre)$table
+      rmeans <- sfsummarytab[,grepl("rmean\\*?$",colnames(sfsummarytab))]
+    } else {
+      #rmeans = summary(sf,rmean="common")$table["*rmean"]
+      sfsummarytab <- summary(sf,rmean="common")$table
+      rmeans <- sfsummarytab[grepl("rmean\\*?$",colnames(sfsummarytab))]
+    }
     riskOrder = order(rmeans)
 
     #order pruned strata by risk determined by restricted mean (AUC of KM curve)
@@ -791,8 +810,14 @@ fittrees = function(yy,X,family="cox",verbose=0,tree.hyper = tree_control()){
     if (length(unique(treeStrataPruned))>1){
       tau.prune = min(sapply(unique(treeStrataPruned),function(x){
         max(yy[,1][treeStrataPruned==x]) }))
-      prunedrmeans = summary(prunedsf,rmean=tau.prune)$table[,"*rmean"]
-    } else prunedrmeans = summary(sf,rmean="common")$table["*rmean"]
+      #prunedrmeans = summary(prunedsf,rmean=tau.prune)$table[,"*rmean"]
+      prunedsfsummarytab <- summary(prunedsf,rmean=tau.prune)$table
+      prunedrmeans <- prunedsfsummarytab[,grepl("rmean\\*?$",colnames(prunedsfsummarytab))]
+    } else {
+      #prunedrmeans = summary(sf,rmean="common")$table["*rmean"]
+      prunedsfsummarytab <- summary(prunedsf,rmean="common")$table
+      prunedrmeans <- prunedsfsummarytab[grepl("rmean\\*?$",names(prunedsfsummarytab))]
+    }
     prunedRiskOrder = order(prunedrmeans)
 
   } else if (family == "binomial"|family=="gaussian"){
@@ -1415,7 +1440,8 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
   #---------------------------#
 
   filterRes = filter5STAR(yy=yy,X=X,family=family,plot=plot,
-                          verbose=verbose,filter.hyper=filter.hyper,vars2keep=NULL)
+                          verbose=verbose,filter.hyper=filter.hyper,
+                          vars2keep=vars2keep)
 
   cov2keep.all = filterRes$cov2keep
   X = X[,colnames(X) %in% cov2keep.all]
@@ -1492,7 +1518,8 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
     minEventsPerStratArmPruned = min(perStrataEventSummaryPruned[1,])
 
     #(should have at least as many events/group as in initial tree fit)
-    if (minEventsPerStratArmPruned < 1)
+    if (family=='cox' & minEventsPerStratArmPruned < 1)
+    #if (minEventsPerStratArmPruned < 1)
       stop(paste0("Need at least one event per strata x arm",
                   " (events per preliminary strata: ",
                   paste0(sapply(1:length(unique(treeStrata)),function(x)
@@ -1502,10 +1529,10 @@ run5STAR = function(yy,arm,X,family="cox",#measure="HR",
                     sum(statusVec[treeStrataPruned==x])),collapse="-"),")"))
 
 
-    if (family == "binomial"){
-      if (min(perStrataEventSummary[3,])==0)
-        stop("Need at least one control per strata x arm")
-    }
+    # if (family == "binomial"){
+    #   if (min(perStrataEventSummary[3,])==0)
+    #     stop("Need at least one control per strata x arm")
+    # }
 
   } else {
     minEventsPerStratArm = NULL
