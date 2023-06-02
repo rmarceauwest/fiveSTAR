@@ -1409,11 +1409,24 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
   #annotation text to print on forest plot
   tabletext = paste0(nn," (",printR(MRSSmat$weight.SS*100,1),")")
 
-  tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
-                                 substr(treetype,2,100),
-                                 " Strata"),labelNames,avgname),
-                        c("No. Subjects (%)",tabletext,
-                          paste0(sum(stratafits$n)," (100)")))
+  strataname <- paste0(toupper(substr(treetype,1,1)),
+                       substr(treetype,2,100)," Strata")
+  meanline <- c(MRSSmat[,"exp.bhat."],MRSSres["exp(beta)"])
+  upper = c(MRSSmat[,"exp.ci.upper."],MRSSres["exp(ci upper)"])
+  lower = c(MRSSmat[,"exp.ci.lower."],MRSSres["exp(ci lower)"])
+
+  # tabletext.all = cbind(c(paste0(toupper(substr(treetype,1,1)),
+  #                                substr(treetype,2,100),
+  #                                " Strata"),labelNames,avgname),
+  #                       c("No. Subjects (%)",tabletext,
+  #                         paste0(sum(stratafits$n)," (100)")))
+
+  tabletext.all <- tibble(strataname = c(labelNames,avgname),
+                          nosubjs = c(tabletext,paste0(sum(stratafits$n)," (100)")),
+                          mean = meanline,
+                          lower = lower,
+                          upper = upper)
+  fplotlabels <- c(strataname, "No. Subjects (%)")
 
   confintlevel = ifelse(alternative=="two.sided",cilevel,2*cilevel)
 
@@ -1453,6 +1466,11 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     gtlt1 = ifelse(alternative=="greater",">1)","<1)")
     ltgt1 = ifelse(alternative=="greater","<1)",">1)")
 
+    hrline <- paste0("Est. HR (",(1-confintlevel)*100,"% CI)")
+    hrprobline <- paste0("Pr(HR",ifelse(measure=='HR',gtlt1,ltgt1))
+    trline <- paste0("Est. TR (",(1-confintlevel)*100,"% CI)")
+    trprobline <- paste0("Pr(TR",ifelse(measure=='TR',gtlt1,ltgt1))
+
     if (measure=="HR" & !is.null(descfit)){
 
       #time ratio information (edit from here!)
@@ -1475,45 +1493,79 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
       tabletext.trgt0[tabletext.trgt0=="0.000"] = "<0.001"
 
       if (simplifyfplot){
-        tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
-                                           substr(treetype,2,100),
-                                           " Strata")),labelNames,avgname),
-                             c(list("No. Subjects (%)"),tabletext,
-                               paste0(sum(stratafits$n)," (100)")),
-                             c(list("No. Events (%)"),tabletext.events,
-                               paste0(sum(stratafits$n.event)," (100)")),
-                             c(list(paste0("Est. HR (",(1-confintlevel)*100,
-                                           "% CI)")),tabletext.ci))
+        # tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+        #                                    substr(treetype,2,100),
+        #                                    " Strata")),labelNames,avgname),
+        #                      c(list("No. Subjects (%)"),tabletext,
+        #                        paste0(sum(stratafits$n)," (100)")),
+        #                      c(list("No. Events (%)"),tabletext.events,
+        #                        paste0(sum(stratafits$n.event)," (100)")),
+        #                      c(list(paste0("Est. HR (",(1-confintlevel)*100,
+        #                                    "% CI)")),tabletext.ci))
+
+        tabletext.all <- tibble(strataname = c(labelNames,avgname),
+                                nosubjs = c(tabletext,paste0(sum(stratafits$n)," (100)")),
+                                noevts = c(tabletext.events,paste0(sum(stratafits$n.event)," (100)")),
+                                hrline = tabletext.ci,
+                                mean = meanline,
+                                lower = lower,
+                                upper = upper)
+
+        fplotlabels <- c(strataname, "No. Subjects (%)","No. Events (%)",hrline)
+
       } else {
-        tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
-                                           substr(treetype,2,100),
-                                           " Strata")),labelNames,avgname),
-                             c(list("No. Subjects (%)"),tabletext,
-                               paste0(sum(stratafits$n)," (100)")),
-                             c(list("No. Events (%)"),tabletext.events,
-                               paste0(sum(stratafits$n.event)," (100)")),
-                             c(list(paste0("Est. HR (",(1-confintlevel)*100,
-                                           "% CI)")),tabletext.ci),
-                             c(list(paste0("Pr(HR",gtlt1)),tabletext.prlt0),
-                             c(list(paste0("Est. TR (",(1-confintlevel)*100,
-                                           "% CI)")),tabletext.tr),
-                             c(list(paste0("Pr(TR",ltgt1)),tabletext.trgt0))
+        # tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+        #                                    substr(treetype,2,100),
+        #                                    " Strata")),labelNames,avgname),
+        #                      c(list("No. Subjects (%)"),tabletext,
+        #                        paste0(sum(stratafits$n)," (100)")),
+        #                      c(list("No. Events (%)"),tabletext.events,
+        #                        paste0(sum(stratafits$n.event)," (100)")),
+        #                      c(list(paste0("Est. HR (",(1-confintlevel)*100,
+        #                                    "% CI)")),tabletext.ci),
+        #                      c(list(paste0("Pr(HR",gtlt1)),tabletext.prlt0),
+        #                      c(list(paste0("Est. TR (",(1-confintlevel)*100,
+        #                                    "% CI)")),tabletext.tr),
+        #                      c(list(paste0("Pr(TR",ltgt1)),tabletext.trgt0))
+
+        tabletext.all <- tibble(strataname = c(labelNames,avgname),
+                                nosubjs = c(tabletext,paste0(sum(stratafits$n)," (100)")),
+                                noevts = c(tabletext.events,paste0(sum(stratafits$n.event)," (100)")),
+                                hrline = tabletext.ci,
+                                hrprobline = tabletext.prlt0,
+                                trline = tabletext.tr,
+                                trprobline = tabletext.trgt0,
+                                mean = meanline,
+                                lower = lower,
+                                upper = upper)
+
+        fplotlabels <- c(strataname, "No. Subjects (%)","No. Events (%)",hrline,
+                         hrprobline,trline,trprobline)
       }
 
     } else {
       if (measure == "TR"){
 
-        tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
-                                           substr(treetype,2,100),
-                                           " Strata")),labelNames,avgname),
-                             c(list("No. Subjects (%)"),tabletext,
-                               paste0(sum(stratafits$n)," (100)")),
-                             c(list("No. Events (%)"),tabletext.events,
-                               paste0(sum(stratafits$n.event)," (100)")),
-                             #c(list(weightName),printR(tabletext.weights*100,1),100),
-                             c(list(paste0("Est. TR (",(1-confintlevel)*100,
-                                           "% CI)")),tabletext.ci),
-                             c(list(paste0("Pr(TR",gtlt1)),tabletext.prlt0))
+        # tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+        #                                    substr(treetype,2,100),
+        #                                    " Strata")),labelNames,avgname),
+        #                      c(list("No. Subjects (%)"),tabletext,
+        #                        paste0(sum(stratafits$n)," (100)")),
+        #                      c(list("No. Events (%)"),tabletext.events,
+        #                        paste0(sum(stratafits$n.event)," (100)")),
+        #                      #c(list(weightName),printR(tabletext.weights*100,1),100),
+        #                      c(list(paste0("Est. TR (",(1-confintlevel)*100,
+        #                                    "% CI)")),tabletext.ci),
+        #                      c(list(paste0("Pr(TR",gtlt1)),tabletext.prlt0))
+
+        tabletext.all <- tibble(strataname = c(labelNames,avgname),
+                                nosubjs = c(tabletext,paste0(sum(stratafits$n)," (100)")),
+                                noevts=c(tabletext.events,paste0(sum(stratafits$n.event)," (100)")),
+                                trline = tabletext.ci,
+                                trprobline = tabletext.prlt0,
+                                mean = meanline, lower = lower, upper = upper)
+
+        fplotlabels <- c(strataname, "No. Subjects (%)","No. Events (%)",trline,trprobline)
 
         if (!is.null(descfit)){
 
@@ -1536,45 +1588,67 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
           tabletext.hrgt0[tabletext.hrgt0=="1.000"] = ">0.999"
           tabletext.hrgt0[tabletext.hrgt0=="0.000"] = "<0.001"
 
-          tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
-                                             substr(treetype,2,100),
-                                             " Strata")),labelNames,avgname),
-                               c(list("No. Subjects (%)"),tabletext,
-                                 paste0(sum(stratafits$n)," (100)")),
-                               c(list("No. Events (%)"),tabletext.events,
-                                 paste0(sum(stratafits$n.event)," (100)")),
-                               c(list(paste0("Est. TR (",(1-confintlevel)*100,
-                                             "% CI)")),tabletext.ci),
-                               c(list(paste0("Pr(TR",gtlt1)),tabletext.prlt0),
-                               c(list(paste0("Est. HR (",(1-confintlevel)*100,
-                                             "% CI)")),tabletext.hr),
-                               c(list(paste0("Pr(HR",ltgt1)),tabletext.hrgt0))
+          # tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+          #                                    substr(treetype,2,100),
+          #                                    " Strata")),labelNames,avgname),
+          #                      c(list("No. Subjects (%)"),tabletext,
+          #                        paste0(sum(stratafits$n)," (100)")),
+          #                      c(list("No. Events (%)"),tabletext.events,
+          #                        paste0(sum(stratafits$n.event)," (100)")),
+          #                      c(list(paste0("Est. TR (",(1-confintlevel)*100,
+          #                                    "% CI)")),tabletext.ci),
+          #                      c(list(paste0("Pr(TR",gtlt1)),tabletext.prlt0),
+          #                      c(list(paste0("Est. HR (",(1-confintlevel)*100,
+          #                                    "% CI)")),tabletext.hr),
+          #                      c(list(paste0("Pr(HR",ltgt1)),tabletext.hrgt0))
+
+          tabletext.all <- tibble(strataname = c(labelNames,avgname),
+                                  nosubjs = c(tabletext,paste0(sum(stratafits$n)," (100)")),
+                                  noevts=c(tabletext.events,paste0(sum(stratafits$n.event)," (100)")),
+                                  trline = tabletext.ci,
+                                  trprobline = tabletext.prlt0,
+                                  hrline = tabletext.hr,
+                                  hrprobline = tabletext.hrgt0,
+                                  mean = meanline, lower = lower, upper = upper)
+
+          fplotlabels <- c(strataname, "No. Subjects (%)","No. Events (%)",trline,trprobline,
+                           hrline,hrprobline)
 
         }
 
       } else {
-      tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
-                                         substr(treetype,2,100),
-                                         " Strata")),labelNames,avgname),
-                           c(list("No. Subjects (%)"),tabletext,
-                             paste0(sum(stratafits$n)," (100)")),
-                           c(list("No. Events (%)"),tabletext.events,
-                             paste0(sum(stratafits$n.event)," (100)")),
-                           #c(list(weightName),printR(tabletext.weights*100,1),100),
-                           c(list(as.expression(
-                             bquote(hat(theta) * bold(" (") *
-                                      bold(.((1-confintlevel)*100)) *
-                                      bold(" % CI)"))) ),tabletext.ci),
-                           c(list(as.expression(bquote(bold("Pr(") * bold(theta)*
-                                                         bold(.(gtlt1))))),
-                             tabletext.prlt0))
+      # tabletext.all = list(c(list(paste0(toupper(substr(treetype,1,1)),
+      #                                    substr(treetype,2,100),
+      #                                    " Strata")),labelNames,avgname),
+      #                      c(list("No. Subjects (%)"),tabletext,
+      #                        paste0(sum(stratafits$n)," (100)")),
+      #                      c(list("No. Events (%)"),tabletext.events,
+      #                        paste0(sum(stratafits$n.event)," (100)")),
+      #                      #c(list(weightName),printR(tabletext.weights*100,1),100),
+      #                      c(list(as.expression(
+      #                        bquote(hat(theta) * bold(" (") *
+      #                                 bold(.((1-confintlevel)*100)) *
+      #                                 bold(" % CI)"))) ),tabletext.ci),
+      #                      c(list(as.expression(bquote(bold("Pr(") * bold(theta)*
+      #                                                    bold(.(gtlt1))))),
+      #                        tabletext.prlt0))
+
+      thetaline <- paste0("Est. (",(1-confintlevel)*100,"% CI)")
+      thetaprobline <- paste0("Pr(Est.",gtlt1)
+
+      tabletext.all <- tibble(strataname := c(labelNames,avgname),
+                              nosubjs = c(tabletext,paste0(sum(stratafits$n)," (100)")),
+                              noevts = c(tabletext.events,paste0(sum(stratafits$n.event)," (100)")),
+                              thetaline = tabletext.ci,
+                              thetaprobline = tabletext.prlt0,
+                              mean = meanline, lower = lower, upper = upper)
+
+      fplotlabels <- c(strataname, "No. Subjects (%)","No. Events (%)",thetaline,thetaprobline)
+
       }
     }
 
-
     #boxsize: mod from forestplot function
-    upper = c(MRSSmat[,"exp.ci.upper."],MRSSres["exp(ci upper)"])
-    lower = c(MRSSmat[,"exp.ci.lower."],MRSSres["exp(ci lower)"])
     cwidth = (upper-lower)
     # Set cwidth to min value if the value is invalid
     # this can be the case for reference points
@@ -1608,22 +1682,42 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
     nc = length(tabletext.all)-1
     xlabname=ifelse(family=="cox","Hazard Ratio (Test / Control)","Odds Ratio")
     if (measure == "TR") xlabname = "Time Ratio (Test / Control)"
-    forestplot.default(labeltext=tabletext.all,
-                           align=c("l",rep("c",nc)),#"c","c","c","c","c","c"),
-                           graph.pos=4,graphwidth=grid::unit(3.5,"inches"),
-                           mean=c(NA,MRSSmat[,"exp.bhat."],MRSSres["exp(beta)"]),
-                           lower=c(NA,lower),upper=c(NA,upper),
-                           is.summary=c(TRUE,rep(FALSE,nstrata),TRUE),
-                           xlab=xlabname,zero=1,
-                           col=forestplot::fpColors(
-                             lines="darkblue",box="darkblue",summary=c("blue")),
-                           lwd.zero=grid::gpar(lwd=2),#xticks.digits = 1,
-                           fn.ci_sum = colfn,clip=clippts,xticks=xtickpts,
-                           colgap=grid::unit(4,"mm"),boxsize=bxsize,
-                           lineheight=grid::unit(1.4+0.3*max(0,nlines-3),"cm"),
-                           txt_gp=txtgp,...)
+    # forestplot.default(labeltext=tabletext.all,
+    #                        align=c("l",rep("c",nc)),#"c","c","c","c","c","c"),
+    #                        graph.pos=4,graphwidth=grid::unit(3.5,"inches"),
+    #                        mean=c(NA,MRSSmat[,"exp.bhat."],MRSSres["exp(beta)"]),
+    #                        lower=c(NA,lower),upper=c(NA,upper),
+    #                        is.summary=c(TRUE,rep(FALSE,nstrata),TRUE),
+    #                        xlab=xlabname,zero=1,
+    #                        col=forestplot::fpColors(
+    #                          lines="darkblue",box="darkblue",summary=c("blue")),
+    #                        lwd.zero=grid::gpar(lwd=2),#xticks.digits = 1,
+    #                        fn.ci_sum = colfn,clip=clippts,xticks=xtickpts,
+    #                        colgap=grid::unit(4,"mm"),boxsize=bxsize,
+    #                        lineheight=grid::unit(1.4+0.3*max(0,nlines-3),"cm"),
+    #                        txt_gp=txtgp,...)
 
-    fplot = recordPlot()
+    labelnames <- setdiff(colnames(tabletext.all),c('mean','lower','upper'))
+    fplotlabellist <- as.list(fplotlabels)
+    names(fplotlabellist) <- labelnames
+
+    fp <- tabletext.all |>
+      forestplot::forestplot(labeltext=tabletext.all[,!(colnames(tabletext.all) %in% c('mean','lower','upper'))],
+                         align=c("l",rep("c",nc)),#"c","c","c","c","c","c"),
+                         graph.pos=4,graphwidth=grid::unit(3.5,"inches"),
+                         is.summary=c(rep(FALSE,nstrata),TRUE),
+                         xlab=xlabname,zero=1,
+                         col=forestplot::fpColors(
+                           lines="darkblue",box="darkblue",summary=c("blue")),
+                         lwd.zero=grid::gpar(lwd=2),#xticks.digits = 1,
+                         fn.ci_sum = colfn,clip=clippts,xticks=xtickpts,
+                         colgap=grid::unit(4,"mm"),boxsize=bxsize,
+                         lineheight=grid::unit(1.4+0.3*max(0,nlines-3),"cm"),
+                         txt_gp=txtgp,...)
+
+    grid::grid.newpage()
+    print(do.call(forestplot::fp_add_header,c(list(fp),fplotlabellist)))
+    fplot <- recordPlot()
 
     #============================================================================#
 
@@ -1738,23 +1832,40 @@ strataforestplot = function(MRSSmat,MRSSres,stratafits,family,measure,
 
     xtickpts <- sort(c(xtickpts,0))
 
-    ncol = ncol(tabletext.all)
+    ncolfp = ncol(tabletext.all)-3
     xlabname=measurenamelong#ifelse(family=="cox","RMST Difference","Risk Difference")
-    forestplot::forestplot(
-      #labeltext=tabletext.all,align=c("l","c","c","c"),graph.pos=4,
-      labeltext=tabletext.all,align=c("l",rep("c",ncol-1)),graph.pos=ncol-1,
+    # forestplot::forestplot(
+    #   #labeltext=tabletext.all,align=c("l","c","c","c"),graph.pos=4,
+    #   labeltext=tabletext.all,align=c("l",rep("c",ncol-1)),graph.pos=ncol-1,
+    #   graphwidth=grid::unit(3.5,"inches"),
+    #   mean=c(NA,MRSSmat[,1],MRSSres[1]),
+    #   lower=c(NA,MRSSmat[,"ci.lower"],MRSSres["ci lower"]),
+    #   upper=c(NA,MRSSmat[,"ci.upper"],MRSSres["ci upper"]),
+    #   is.summary=c(TRUE,rep(FALSE,nstrata),TRUE),xlab=xlabname,zero=0,
+    #   col=forestplot::fpColors(
+    #     lines="darkblue",box="darkblue",summary=c("blue")),fn.ci_sum = colfn,
+    #   lineheight=grid::unit(1.4+0.3*max(0,nlines-3),"cm"), #grid::unit(1.4,"cm"),
+    #   lwd.zero=grid::gpar(lwd=2),boxsize=bxsize,clip=clippts,xticks=xtickpts,
+    #   txt_gp=txtgp,...)
+
+    labelnames <- setdiff(colnames(tabletext.all),c('mean','lower','upper'))
+    fplotlabellist <- as.list(fplotlabels)
+    names(fplotlabellist) <- labelnames
+
+    fp <- tabletext.all |> forestplot::forestplot(
+      labeltext=tabletext.all[,!(colnames(tabletext.all) %in% c('mean','lower','upper'))],
+      align=c("l",rep("c",ncolfp-1)),graph.pos=ncolfp-1,
       graphwidth=grid::unit(3.5,"inches"),
-      mean=c(NA,MRSSmat[,1],MRSSres[1]),
-      lower=c(NA,MRSSmat[,"ci.lower"],MRSSres["ci lower"]),
-      upper=c(NA,MRSSmat[,"ci.upper"],MRSSres["ci upper"]),
-      is.summary=c(TRUE,rep(FALSE,nstrata),TRUE),xlab=xlabname,zero=0,
+      is.summary=c(rep(FALSE,nstrata),TRUE),xlab=xlabname,zero=0,
       col=forestplot::fpColors(
         lines="darkblue",box="darkblue",summary=c("blue")),fn.ci_sum = colfn,
       lineheight=grid::unit(1.4+0.3*max(0,nlines-3),"cm"), #grid::unit(1.4,"cm"),
       lwd.zero=grid::gpar(lwd=2),boxsize=bxsize,clip=clippts,xticks=xtickpts,
       txt_gp=txtgp,...)
 
-    fplot = recordPlot()
+    grid::grid.newpage()
+    print(do.call(forestplot::fp_add_header,c(list(fp),fplotlabellist)))
+    fplot <- recordPlot()
 
   }
 
